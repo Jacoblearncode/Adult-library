@@ -1,0 +1,120 @@
+# Personal Media Library — Project Plan
+
+A **local-first, private** media library for organizing videos on my own device(s).
+Not a public website. Access is restricted to me and, optionally, specific friends
+over a private VPN (Tailscale) — never exposed to the public internet.
+
+## Guiding principles
+
+- **Local-first**: files live on my disk, not a cloud host.
+- **Link over download**: prefer storing a URL/metadata entry over downloading
+  and storing the full file, unless I actually want an offline copy.
+- **No public exposure**: no public cloud hosting, no port-forwarding to the
+  open internet. Sharing = private VPN only, with auth.
+- **Simple now, extensible later**: start with the smallest working setup,
+  keep pieces swappable (e.g. binary → Docker later if needed).
+
+---
+
+## Part 1 — Core library app (Stash)
+
+Using [Stash](https://github.com/stashapp/stash) as the media organizer
+instead of building one from scratch. Handles scanning, tagging, thumbnails,
+scrapers, and URL-only entries out of the box.
+
+### Setup checklist
+
+- [ ] Download the prebuilt Stash binary for Windows from the
+      [releases page](https://github.com/stashapp/stash/releases) (no Docker needed)
+- [ ] Create a media folder to act as the library root (e.g. `D:\Library\Videos`)
+- [ ] Run the `.exe`, open `http://localhost:9999`, complete the first-run wizard
+- [ ] Point Stash at the media folder as a **Library**
+- [ ] Run an initial **Scan** to confirm it picks up test files
+- [ ] Confirm the **SQLite database** location (this holds all tags/metadata —
+      separate from the video files)
+- [ ] Add one **URL-only scene** manually (no file) to confirm that workflow
+- [ ] Settings → Security → set a **username/password** (do this before any
+      remote access)
+- [ ] Decide a rough **tagging convention** (categories, performers, whatever
+      matters) before the library grows
+- [ ] Set up a **backup routine** for the Stash database file specifically
+
+### Later / optional
+
+- [ ] Enable a metadata **scraper** plugin for auto-tagging (skip if manual
+      tagging is fine)
+- [ ] Migrate to **Docker** if I want easier updates or to run companion
+      containers later
+- [ ] DLNA / cast-to-TV setup
+
+### Restricted sharing with a friend
+
+- [ ] Install [Tailscale](https://tailscale.com) (free tier) on my machine
+- [ ] Install Tailscale on friend's device, add to my private tailnet
+- [ ] Share the Stash URL over the Tailscale IP — never a public address
+- [ ] Confirm basic auth is required before sharing access
+
+---
+
+## Part 2 — Download workflow (planning)
+
+**Goal**: an easy way to either (a) download a video for offline storage, or
+(b) save it as a link-only entry in Stash — with some way to pick
+category/type/length/style before deciding which.
+
+### Reality check on tooling
+
+- [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) is the standard free/open-source
+  downloader, but its maintainers deliberately **do not support most
+  mainstream adult tube sites** (long-standing project policy). It works for:
+  - sites with an official supported extractor (e.g. Vimeo, some
+    creator/self-hosted platforms)
+  - my own content, or content from platforms that explicitly provide a
+    download feature/API
+- There is **no general-purpose legitimate tool** that downloads from
+  arbitrary adult tube sites against their ToS — treat "download" as the
+  *exception* path, not the default.
+- **Default path = link-only entry** in Stash (matches what I wanted anyway:
+  not storing everything).
+
+### Planned architecture
+
+1. **Download tool**: plain `yt-dlp` CLI for the sites it actually supports.
+   No Docker required — single executable, cross-platform.
+2. **Folder convention**: downloads land in a structured path so Stash
+   auto-organizes on scan, e.g.
+   ```
+   D:\Library\Videos\<category>\<title>.mp4
+   ```
+3. **Selection step (category/type/length/style)**: before running a
+   download, decide the category/tag — simplest version is just picking the
+   destination subfolder; a nicer version later is a small local script/UI
+   that:
+   - takes a pasted link
+   - lets me pick category/tags from a dropdown
+   - calls `yt-dlp` (if supported) *or* creates a link-only entry directly
+     in Stash via its API if not
+4. **Stash API integration** (future): Stash exposes a GraphQL API — a small
+   script could create scenes (file-based or URL-only) directly with tags
+   pre-filled, instead of relying on manual entry + scrapers.
+
+### Checklist
+
+- [ ] Install `yt-dlp` (single executable, no Docker)
+- [ ] Test it against one or two sites it actually supports
+- [ ] Decide folder-per-category convention for downloaded files
+- [ ] For unsupported sites: use Stash's URL-only scene entry as the default
+- [ ] (Later) Build a tiny local script/UI: paste link → pick category →
+      either download (if supported) or create a link-only Stash entry via API
+- [ ] (Later) Explore Stash's GraphQL API for scripted scene creation
+
+---
+
+## Open questions to revisit
+
+- Do I want the "paste link, pick category" step to be a real UI, or is a
+  folder-naming convention + manual Stash entry good enough for now?
+- How much do I care about offline copies vs. just linking? (affects how much
+  effort goes into the download tool vs. skipping it)
+- When (if ever) do I move to Docker — only when I want auto-updates, or
+  also if I add more moving pieces (Tailscale sidecar, custom scripts)?
