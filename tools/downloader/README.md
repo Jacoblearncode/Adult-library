@@ -28,6 +28,15 @@ or your private Tailscale network.
    ```
 5. Open http://localhost:5050
 
+## Batch mode
+
+Go to http://localhost:5050/batch to paste a list of URLs you've already
+picked out while browsing (one per line). Optionally set a category per
+line as `url, category`; lines without one use the default category you
+pick on the form. This is meant for links *you* selected by hand — it does
+not search or scrape anything on its own, it just runs each URL through the
+same download-or-link logic in one batch instead of one at a time.
+
 ## How it decides download vs link-only
 
 - Tries `yt-dlp` extraction first (no download yet, just a probe).

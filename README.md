@@ -104,6 +104,9 @@ category/type/length/style before deciding which.
       supported) or link-only fallback — see `tools/downloader/`
 - [x] Enforce a 100 GB library size cap before any download
 - [x] Use yt-dlp's `--download-archive` to avoid duplicate downloads
+- [x] Batch mode: paste a list of self-picked URLs at `/batch` instead of
+      one at a time (deliberately does not search/scrape on its own — see
+      note below on why)
 - [ ] Install Python + dependencies and do first real run
       (`tools/downloader/README.md` has setup steps)
 - [ ] Test it against one or two sites it actually supports
@@ -114,6 +117,19 @@ category/type/length/style before deciding which.
       URL-only scenes automatically instead of manual entry
 
 ---
+
+### Scope note: the PowerShell scripts
+
+The `download-center.ps1` / `download-menu.ps1` / `download-videos.ps1` /
+`launcher.ps1` / `pornstar-config.json` scripts in the repo root came from
+an earlier project and do automated multi-site search-and-bulk-download
+(scripted searches across ~10 tube sites, proxy support to sustain bulk
+requests). That pattern — automated scraping across many sites plus a
+proxy to avoid rate-limiting/blocking — is out of scope for this project
+and won't be integrated or extended. The `tools/downloader` batch mode
+covers the same underlying need (getting more than one video in without
+doing it one at a time) without the scraping/evasion part: you pick the
+URLs yourself by browsing, and paste the list in.
 
 ## Open questions to revisit
 

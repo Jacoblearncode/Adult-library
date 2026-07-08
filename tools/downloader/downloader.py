@@ -158,3 +158,36 @@ def process_url(url, category, action, config):
         return {"status": "link_only", "reason": "forced link-only", "category": category}
 
     return download_url(url, category, config)
+
+
+def parse_batch_input(text, default_category):
+    """Parse a textarea of URLs (one per line, optional ", category" suffix)
+    into a list of (url, category) tuples.
+    """
+    items = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "," in line:
+            url, category = line.split(",", 1)
+            url = url.strip()
+            category = category.strip() or default_category
+        else:
+            url = line
+            category = default_category
+        items.append((url, category))
+    return items
+
+
+def process_batch(text, default_category, action, config):
+    """Run process_url over every line of a batch textarea. Returns a list
+    of result dicts (each with the source url/category attached).
+    """
+    results = []
+    for url, category in parse_batch_input(text, default_category):
+        result = process_url(url, category, action, config)
+        result = dict(result)
+        result["url"] = url
+        results.append(result)
+    return results

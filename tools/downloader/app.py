@@ -10,9 +10,14 @@ import downloader
 
 app = Flask(__name__)
 
+NAV = """
+<p><a href="/">Add one link</a> | <a href="/batch">Add a batch</a></p>
+"""
+
 PAGE = """
 <!doctype html>
 <title>Library Downloader</title>
+""" + NAV + """
 <h1>Paste a link</h1>
 <form method="post" action="/add">
   <p><input type="text" name="url" placeholder="https://..." size="60" required></p>
@@ -45,6 +50,51 @@ PAGE = """
 <tr><td>{{ e.url }}</td><td>{{ e.category }}</td><td>{{ e.note }}</td><td>{{ e.added_at }}</td></tr>
 {% endfor %}
 </table>
+"""
+
+BATCH_PAGE = """
+<!doctype html>
+<title>Library Downloader - Batch</title>
+""" + NAV + """
+<h1>Add a batch of links</h1>
+<p>Paste one URL per line. You picked these yourself while browsing &mdash;
+this just saves you doing them one at a time. Optionally add a category
+per line as <code>url, category</code>; otherwise the default below is used.</p>
+<form method="post" action="/batch">
+  <p><textarea name="urls" rows="12" cols="80" placeholder="https://example.com/video-1&#10;https://example.com/video-2, favorites"></textarea></p>
+  <p>Default category (used for lines without one):
+    <select name="default_category">
+      {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+    </select>
+    or new: <input type="text" name="new_default_category" placeholder="type a new category">
+  </p>
+  <p>Action:
+    <label><input type="radio" name="action" value="auto" checked> Auto (download if supported, else link)</label>
+    <label><input type="radio" name="action" value="download"> Force download attempt</label>
+    <label><input type="radio" name="action" value="link"> Force link-only</label>
+  </p>
+  <button type="submit">Process batch</button>
+</form>
+
+{% if results is not none %}
+<h2>Batch results ({{ results|length }})</h2>
+<table border="1" cellpadding="4">
+<tr><th>URL</th><th>Category</th><th>Status</th><th>Detail</th></tr>
+{% for r in results %}
+<tr>
+  <td>{{ r.url }}</td>
+  <td>{{ r.category }}</td>
+  <td>{{ r.status }}</td>
+  <td>{{ r.title or r.reason or "" }}</td>
+</tr>
+{% endfor %}
+</table>
+<p>
+  Downloaded: {{ results|selectattr("status", "equalto", "downloaded")|list|length }}
+  &nbsp;|&nbsp;
+  Link-only: {{ results|selectattr("status", "equalto", "link_only")|list|length }}
+</p>
+{% endif %}
 """
 
 
@@ -81,6 +131,35 @@ def add():
         current_gb=current_bytes / (1024 ** 3),
         max_gb=config.get("max_library_bytes", 0) / (1024 ** 3),
         result=result,
+    )
+
+
+@app.route("/batch", methods=["GET"])
+def batch_form():
+    config = downloader.load_config()
+    return render_template_string(
+        BATCH_PAGE,
+        categories=config.get("categories", ["uncategorized"]),
+        results=None,
+    )
+
+
+@app.route("/batch", methods=["POST"])
+def batch_submit():
+    config = downloader.load_config()
+    urls_text = request.form.get("urls", "")
+    default_category = (
+        request.form.get("new_default_category", "").strip()
+        or request.form.get("default_category", "uncategorized")
+    )
+    action = request.form.get("action", "auto")
+
+    results = downloader.process_batch(urls_text, default_category, action, config)
+
+    return render_template_string(
+        BATCH_PAGE,
+        categories=config.get("categories", ["uncategorized"]),
+        results=results,
     )
 
 
