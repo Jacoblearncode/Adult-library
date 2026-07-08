@@ -1,0 +1,275 @@
+# pornstar-config.json
+# Configuration file for pornstar and category definitions
+# You can easily add or modify entries here
+
+{
+  "pornstars": {
+    "sky_bri": {
+      "name": "Sky Bri",
+      "searches": [
+        "Sky Bri",
+        "Sky Bri blowjob",
+        "Sky Bri POV",
+        "Sky Bri JOI"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "meana_wolf": {
+      "name": "Meana Wolf",
+      "searches": [
+        "Meana Wolf",
+        "Meana Wolf JOI",
+        "Meana Wolf mommy",
+        "Meana Wolf taboo"
+      ],
+      "platforms": ["pornhub", "spankbang"]
+    },
+    "jewelz_blu": {
+      "name": "Jewelz Blu",
+      "searches": [
+        "Jewelz Blu blowjob",
+        "Jewelz Blu",
+        "Jewelz Blu POV",
+        "Jewelz Blu deepthroat"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "kendra_sunderland": {
+      "name": "Kendra Sunderland",
+      "searches": [
+        "Kendra Sunderland",
+        "Kendra Sunderland blowjob",
+        "Kendra Sunderland POV"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "jessica_starling": {
+      "name": "Jessica Starling",
+      "searches": [
+        "Jessica Starling",
+        "Jessica Starling JOI",
+        "Jessica Starling CEI",
+        "Jessica Starling femdom"
+      ],
+      "platforms": ["pornhub", "spankbang"]
+    },
+    "larkin_love": {
+      "name": "Larkin Love",
+      "searches": [
+        "Larkin Love",
+        "Larkin Love JOI",
+        "Larkin Love taboo",
+        "Larkin Love POV"
+      ],
+      "platforms": ["pornhub", "spankbang"]
+    },
+    "alexa_pearl": {
+      "name": "Alexa Pearl",
+      "searches": [
+        "Alexa Pearl",
+        "Alexa Pearl JOI",
+        "Alexa Pearl blowjob",
+        "Alexa Pearl POV"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "dani_daniels": {
+      "name": "Dani Daniels",
+      "searches": [
+        "Dani Daniels",
+        "Dani Daniels JOI",
+        "Dani Daniels POV"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "lena_paul": {
+      "name": "Lena Paul",
+      "searches": [
+        "Lena Paul",
+        "Lena Paul POV",
+        "Lena Paul blowjob"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "gabbie_carter": {
+      "name": "Gabbie Carter",
+      "searches": [
+        "Gabbie Carter",
+        "Gabbie Carter POV",
+        "Gabbie Carter blowjob"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "kera_bear": {
+      "name": "Kera Bear",
+      "searches": [
+        "Kera Bear blowjob",
+        "Kera Bear",
+        "Kera Bear POV"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "cherry_crush": {
+      "name": "Cherry Crush",
+      "searches": [
+        "Cherry Crush",
+        "Cherry Crush JOI",
+        "Cherry Crush ASMR"
+      ],
+      "platforms": ["pornhub", "spankbang"]
+    },
+    "violet_myers": {
+      "name": "Violet Myers",
+      "searches": [
+        "Violet Myers",
+        "Violet Myers POV",
+        "Violet Myers blowjob"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    }
+  },
+  "categories": {
+    "pmv": {
+      "name": "PMV (Porn Music Videos)",
+      "searches": [
+        "PMV",
+        "PMV compilation",
+        "PMV hypno",
+        "best PMV",
+        "PMV blowjob",
+        "PMV JOI",
+        "PMV gooner"
+      ],
+      "direct_urls": [
+        "https://www.xvideos.com/video.udpkbdfeb95/the_only_pmv_you_ll_ever_need"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "futa_oral": {
+      "name": "Futa Oral/Blowjob",
+      "searches": [
+        "futa oral",
+        "futa blowjob",
+        "futa POV",
+        "futa deepthroat",
+        "futanari blowjob",
+        "futa face fuck"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "joi_game": {
+      "name": "JOI Games & Interactive",
+      "searches": [
+        "JOI game",
+        "JOI challenge",
+        "JOI countdown",
+        "interactive JOI",
+        "JOI instructions",
+        "JOI metronome"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "cei": {
+      "name": "CEI (Cum Eating Instructions)",
+      "searches": [
+        "CEI",
+        "cum eating instruction",
+        "CEI JOI",
+        "femdom CEI",
+        "CEI countdown"
+      ],
+      "platforms": ["pornhub", "spankbang"]
+    },
+    "ahegao": {
+      "name": "Ahegao/Egirl",
+      "searches": [
+        "ahegao",
+        "egirl JOI",
+        "ahegao blowjob",
+        "ahegao POV",
+        "egirl POV"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "3d_hentai": {
+      "name": "3D Hentai/Animated",
+      "searches": [
+        "3D hentai",
+        "3D compilation",
+        "3D porn",
+        "3D animation",
+        "hentai 3D POV",
+        "3D anime"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "blowjob": {
+      "name": "Blowjob Compilation",
+      "searches": [
+        "blowjob compilation",
+        "deepthroat",
+        "POV blowjob",
+        "sloppy blowjob",
+        "blowjob cum in mouth"
+      ],
+      "platforms": ["pornhub", "spankbang", "xvideos"]
+    },
+    "edging": {
+      "name": "Edging & Tease",
+      "searches": [
+        "edging JOI",
+        "tease and denial",
+        "edging game",
+        "edge challenge",
+        "edging compilation"
+      ],
+      "platforms": ["pornhub", "spankbang"]
+    },
+    "femdom": {
+      "name": "Femdom JOI",
+      "searches": [
+        "femdom JOI",
+        "femdom instruction",
+        "femdom POV",
+        "dominant woman JOI"
+      ],
+      "platforms": ["pornhub", "spankbang"]
+    }
+  },
+  "platforms": {
+    "pornhub": {
+      "url": "https://www.pornhub.com",
+      "search": "https://www.pornhub.com/video/search?search={0}",
+      "enabled": true
+    },
+    "xvideos": {
+      "url": "https://www.xvideos.com",
+      "search": "https://www.xvideos.com/?k={0}",
+      "enabled": true
+    },
+    "spankbang": {
+      "url": "https://spankbang.com",
+      "search": "https://spankbang.com/s/{0}/",
+      "enabled": true
+    },
+    "xhamster": {
+      "url": "https://xhamster.com",
+      "search": "https://xhamster.com/search/{0}",
+      "enabled": false
+    },
+    "eporner": {
+      "url": "https://www.eporner.com",
+      "search": "https://www.eporner.com/search/{0}/",
+      "enabled": false
+    }
+  },
+  "settings": {
+    "max_videos_per_search": 10,
+    "max_height": 1080,
+    "max_parallel_downloads": 3,
+    "concurrent_fragments": 4,
+    "output_directory": "public/assets/videos",
+    "sleep_interval": 2,
+    "max_sleep_interval": 5
+  }
+}
