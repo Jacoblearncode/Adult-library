@@ -100,13 +100,18 @@ category/type/length/style before deciding which.
 
 ### Checklist
 
-- [ ] Install `yt-dlp` (single executable, no Docker)
+- [x] Build a local tool: paste link → pick category → download (if
+      supported) or link-only fallback — see `tools/downloader/`
+- [x] Enforce a 100 GB library size cap before any download
+- [x] Use yt-dlp's `--download-archive` to avoid duplicate downloads
+- [ ] Install Python + dependencies and do first real run
+      (`tools/downloader/README.md` has setup steps)
 - [ ] Test it against one or two sites it actually supports
-- [ ] Decide folder-per-category convention for downloaded files
-- [ ] For unsupported sites: use Stash's URL-only scene entry as the default
-- [ ] (Later) Build a tiny local script/UI: paste link → pick category →
-      either download (if supported) or create a link-only Stash entry via API
-- [ ] (Later) Explore Stash's GraphQL API for scripted scene creation
+- [ ] Point `config.json`'s `library_root` at the same folder Stash scans
+- [ ] For unsupported sites (most adult tube sites): confirm link-only
+      entries land correctly in `link_entries.json`
+- [ ] (Later) Explore Stash's GraphQL API to push link-only entries in as
+      URL-only scenes automatically instead of manual entry
 
 ---
 

@@ -1,0 +1,12 @@
+# personal data - never commit
+tools/downloader/config.json
+tools/downloader/link_entries.json
+tools/downloader/.download-archive.txt
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# local media (in case Library ever ends up inside the repo by accident)
+Library/
