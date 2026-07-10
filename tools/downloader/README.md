@@ -2,7 +2,10 @@
 
 Small local web UI: paste a link, pick a category, and it either downloads
 the video via `yt-dlp` (only works for sites yt-dlp actually supports) or
-falls back to a link-only entry logged in `link_entries.json`.
+falls back to a link-only entry. Every attempt (downloaded or link-only) is
+logged to `link_entries.json` and shown in one searchable history table on
+the home page, with stat cards for downloaded count / link-only count /
+library size against the cap, and a remove button per row.
 
 Runs entirely on `localhost` — do not expose this port beyond your machine
 or your private Tailscale network.

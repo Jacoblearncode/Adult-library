@@ -8,13 +8,14 @@ size cap.
 import json
 import os
 import re
+import sys
 import time
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "config.json"
 CONFIG_EXAMPLE_PATH = BASE_DIR / "config.example.json"
-LINK_ENTRIES_PATH = BASE_DIR / "link_entries.json"
+HISTORY_PATH = BASE_DIR / "link_entries.json"
 ARCHIVE_PATH = BASE_DIR / ".download-archive.txt"
 
 
@@ -25,26 +26,37 @@ def load_config():
 
 
 def load_link_entries():
-    if not LINK_ENTRIES_PATH.exists():
+    if not HISTORY_PATH.exists():
         return []
-    with open(LINK_ENTRIES_PATH, "r", encoding="utf-8") as f:
+    with open(HISTORY_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def save_link_entries(entries):
-    with open(LINK_ENTRIES_PATH, "w", encoding="utf-8") as f:
+    with open(HISTORY_PATH, "w", encoding="utf-8") as f:
         json.dump(entries, f, indent=2)
 
 
-def add_link_entry(url, category, note=""):
+def add_history_entry(url, category, status, title="", note=""):
     entries = load_link_entries()
     entries.append({
         "url": url,
         "category": category,
+        "status": status,
+        "title": title,
         "note": note,
         "added_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     })
     save_link_entries(entries)
+    return entries
+
+
+def delete_entry(index):
+    entries = load_link_entries()
+    if 0 <= index < len(entries):
+        entries.pop(index)
+        save_link_entries(entries)
+    return entries
 
 
 def sanitize_category(category):
@@ -92,6 +104,19 @@ def probe_url(url):
         return False, None, str(e)
 
 
+def _progress_hook(d):
+    """Collapse yt-dlp's per-fragment spam into a single updating line."""
+    if d.get("status") == "downloading":
+        percent = (d.get("_percent_str") or "").strip()
+        speed = (d.get("_speed_str") or "").strip()
+        eta = (d.get("_eta_str") or "").strip()
+        sys.stdout.write(f"\rDownloading... {percent} at {speed}, ETA {eta}   ")
+        sys.stdout.flush()
+    elif d.get("status") == "finished":
+        sys.stdout.write("\rDownload complete, processing...                \n")
+        sys.stdout.flush()
+
+
 def download_url(url, category, config):
     """Attempt to download via yt-dlp into the category folder.
 
@@ -109,7 +134,7 @@ def download_url(url, category, config):
 
     supported, info, error = probe_url(url)
     if not supported:
-        add_link_entry(url, category, note=f"yt-dlp unsupported: {error}")
+        add_history_entry(url, category, "link_only", note=f"yt-dlp unsupported: {error}")
         return {
             "status": "link_only",
             "reason": error or "URL not supported by yt-dlp",
@@ -118,8 +143,8 @@ def download_url(url, category, config):
 
     estimated_size = info.get("filesize") or info.get("filesize_approx") or 0
     if current_size + estimated_size > max_bytes:
-        add_link_entry(
-            url, category,
+        add_history_entry(
+            url, category, "link_only",
             note=f"skipped download: would exceed {max_bytes / (1024**3):.1f} GB cap",
         )
         return {
@@ -133,17 +158,21 @@ def download_url(url, category, config):
         "download_archive": str(ARCHIVE_PATH),
         "quiet": True,
         "no_warnings": True,
+        "noprogress": True,
+        "progress_hooks": [_progress_hook],
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
+        title = info.get("title", url)
+        add_history_entry(url, category, "downloaded", title=title)
         return {
             "status": "downloaded",
             "category": category,
-            "title": info.get("title", url),
+            "title": title,
         }
     except Exception as e:
-        add_link_entry(url, category, note=f"download failed: {e}")
+        add_history_entry(url, category, "link_only", note=f"download failed: {e}")
         return {
             "status": "link_only",
             "reason": f"download failed: {e}",
@@ -154,7 +183,7 @@ def download_url(url, category, config):
 def process_url(url, category, action, config):
     """action: 'auto' | 'download' | 'link'"""
     if action == "link":
-        add_link_entry(url, category)
+        add_history_entry(url, category, "link_only", note="forced link-only")
         return {"status": "link_only", "reason": "forced link-only", "category": category}
 
     return download_url(url, category, config)
