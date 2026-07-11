@@ -24,6 +24,8 @@ scrapers, and URL-only entries out of the box.
 
 ### Setup checklist
 
+- [ ] Follow `STASH_SETUP.md` for a full beginner walkthrough (Windows,
+      no Docker) — install, first scan, security, and getting an API key
 - [ ] Download the prebuilt Stash binary for Windows from the
       [releases page](https://github.com/stashapp/stash/releases) (no Docker needed)
 - [ ] Create a media folder to act as the library root (e.g. `D:\Library\Videos`)
@@ -113,8 +115,12 @@ category/type/length/style before deciding which.
 - [ ] Point `config.json`'s `library_root` at the same folder Stash scans
 - [ ] For unsupported sites (most adult tube sites): confirm link-only
       entries land correctly in `link_entries.json`
-- [ ] (Later) Explore Stash's GraphQL API to push link-only entries in as
-      URL-only scenes automatically instead of manual entry
+- [x] Folder-style nested categories (`favorites/holiday`) mapping to real
+      subfolders on disk, with folder-chip filtering in the UI
+- [x] Push link-only entries into Stash as URL-only scenes via its GraphQL
+      API, once `stash_url` / `stash_api_key` are set in `config.json`
+- [ ] Generate a Stash API key and confirm the "Push to Stash" button works
+      end-to-end
 
 ---
 

@@ -49,9 +49,23 @@ same download-or-link logic in one batch instead of one at a time.
 - The `.download-archive.txt` file (yt-dlp's own dedup mechanism) prevents
   re-downloading the same video twice.
 
+## Folder-style categories
+
+Categories can be nested with "/", e.g. `favorites/holiday` — this maps
+directly to `<library_root>/favorites/holiday/` on disk, and Stash's own
+folder scanning picks up the same structure. The home page shows folder
+chips (top-level only) to quickly filter the history table.
+
+## Pushing link-only entries into Stash
+
+Once `stash_url` and `stash_api_key` are set in `config.json` (see
+`STASH_SETUP.md` for getting an API key), each link-only row in the history
+table gets a **"Push to Stash"** button. This creates a URL-only scene in
+Stash via its GraphQL API — no file, just title/URL/category metadata — so
+it shows up in Stash's browsing grid as a title card. Once pushed, the row
+is marked "In Stash" and won't be pushed again.
+
 ## After downloading
 
 Files land in `<library_root>/<category>/`. Run a **Scan** in Stash to pick
-them up. Link-only entries currently just live in `link_entries.json` —
-manually add them as URL-only scenes in Stash for now; a future step could
-push them into Stash automatically via its GraphQL API.
+them up and get real thumbnails.

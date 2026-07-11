@@ -45,6 +45,7 @@ def add_history_entry(url, category, status, title="", note=""):
         "status": status,
         "title": title,
         "note": note,
+        "pushed_to_stash": False,
         "added_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     })
     save_link_entries(entries)
@@ -59,10 +60,34 @@ def delete_entry(index):
     return entries
 
 
+def mark_pushed(index):
+    entries = load_link_entries()
+    if 0 <= index < len(entries):
+        entries[index]["pushed_to_stash"] = True
+        save_link_entries(entries)
+    return entries
+
+
 def sanitize_category(category):
+    """Sanitize a possibly-nested category path like 'favorites/holiday'
+    into safe folder path segments, preserving the '/' nesting.
+    """
     category = (category or "uncategorized").strip().lower()
-    category = re.sub(r"[^a-z0-9_-]+", "-", category).strip("-")
-    return category or "uncategorized"
+    parts = [
+        re.sub(r"[^a-z0-9_-]+", "-", part).strip("-")
+        for part in category.split("/")
+    ]
+    parts = [p for p in parts if p]
+    return "/".join(parts) or "uncategorized"
+
+
+def top_level_folders(entries):
+    seen = []
+    for e in entries:
+        top = e.get("category", "uncategorized").split("/")[0]
+        if top not in seen:
+            seen.append(top)
+    return sorted(seen)
 
 
 def get_library_size_bytes(library_root):
@@ -207,6 +232,58 @@ def parse_batch_input(text, default_category):
             category = default_category
         items.append((url, category))
     return items
+
+
+STASH_SCENE_CREATE_MUTATION = """
+mutation SceneCreate($title: String, $urls: [String!], $details: String) {
+  sceneCreate(input: { title: $title, urls: $urls, details: $details }) {
+    id
+  }
+}
+"""
+
+
+def push_to_stash(entry, config):
+    """Create a URL-only scene in Stash for a link-only history entry.
+
+    Requires 'stash_url' and 'stash_api_key' in config. Returns
+    (success: bool, message: str).
+    """
+    import requests
+
+    stash_url = config.get("stash_url")
+    api_key = config.get("stash_api_key")
+    if not stash_url:
+        return False, "stash_url not set in config.json"
+    if not api_key:
+        return False, "stash_api_key not set in config.json"
+
+    title = entry.get("title") or entry["url"]
+    details_bits = [f"category: {entry.get('category', 'uncategorized')}"]
+    if entry.get("note"):
+        details_bits.append(entry["note"])
+
+    try:
+        resp = requests.post(
+            stash_url,
+            json={
+                "query": STASH_SCENE_CREATE_MUTATION,
+                "variables": {
+                    "title": title,
+                    "urls": [entry["url"]],
+                    "details": " | ".join(details_bits),
+                },
+            },
+            headers={"ApiKey": api_key},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("errors"):
+            return False, str(data["errors"])
+        return True, data["data"]["sceneCreate"]["id"]
+    except Exception as e:
+        return False, str(e)
 
 
 def process_batch(text, default_category, action, config):

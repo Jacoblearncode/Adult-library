@@ -33,8 +33,11 @@ STYLE = """
   button:hover { opacity: 0.9; }
   button.link-btn { background: none; color: var(--muted); padding: 0.2rem 0.4rem; font-weight: 400; }
   button.link-btn:hover { color: #dc2626; opacity: 1; text-decoration: underline; }
+  button.push-btn { background: none; color: var(--accent); padding: 0.2rem 0.4rem; font-weight: 600; font-size: 0.82rem; }
+  button.push-btn:hover { text-decoration: underline; opacity: 1; }
   .field { margin-bottom: 1rem; }
   .actions label { margin-right: 1.25rem; font-weight: 400; font-size: 0.9rem; }
+  .hint { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
 
   .stats { display: flex; gap: 1rem; max-width: 960px; margin: 0 auto 1.5rem; }
   .stat { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 14px;
@@ -53,12 +56,18 @@ STYLE = """
   .pill { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
   .pill.downloaded { background: #dcfce7; color: var(--green); }
   .pill.link_only { background: #f1f2f6; color: var(--gray); }
+  .pill.pushed { background: #eef0ff; color: var(--accent); margin-left: 0.35rem; }
   .tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 6px; background: #eef0ff; color: var(--accent); font-size: 0.8rem; }
+  .crumb-sep { color: var(--muted); margin: 0 0.15rem; }
   .url-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .muted { color: var(--muted); font-size: 0.85rem; }
   pre { background: #f6f7fb; border-radius: 8px; padding: 0.9rem; overflow-x: auto; }
   .searchbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
   .searchbar input { flex: 1; }
+  .folders { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+  .folder-chip { display: inline-block; padding: 0.3rem 0.75rem; border-radius: 999px; font-size: 0.85rem;
+                 background: #f1f2f6; color: var(--text); text-decoration: none; }
+  .folder-chip.active { background: var(--accent); color: #fff; }
 </style>
 """
 
@@ -76,11 +85,12 @@ PAGE = """
 <form method="post" action="/add">
   <div class="field"><input type="text" name="url" placeholder="https://..." size="60" required></div>
   <div class="field">
-    Category:
+    Category / folder:
     <select name="category">
       {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
     </select>
-    or new: <input type="text" name="new_category" placeholder="type a new category">
+    or new: <input type="text" name="new_category" placeholder="e.g. favorites/holiday">
+    <div class="hint">Use "/" to nest folders, e.g. <code>favorites/holiday</code> &mdash; matches how files get organized on disk.</div>
   </div>
   <div class="field actions">
     <label><input type="radio" name="action" value="auto" checked> Auto (download if supported, else link)</label>
@@ -115,7 +125,18 @@ PAGE = """
 
 <div class="card">
 <h1>Library history ({{ entries|length }})</h1>
+
+{% if folders %}
+<div class="folders">
+  <a class="folder-chip {% if not folder %}active{% endif %}" href="{{ url_for('index', q=q) }}">All</a>
+  {% for f in folders %}
+  <a class="folder-chip {% if folder == f %}active{% endif %}" href="{{ url_for('index', q=q, folder=f) }}">{{ f }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
 <form class="searchbar" method="get" action="/">
+  {% if folder %}<input type="hidden" name="folder" value="{{ folder }}">{% endif %}
   <input type="text" name="q" value="{{ q or '' }}" placeholder="Search by URL, title, or category">
   <button type="submit">Search</button>
 </form>
@@ -124,12 +145,22 @@ PAGE = """
 {% for idx, e in entries %}
 <tr>
   <td class="url-cell" title="{{ e.url }}">{{ e.title or e.url }}</td>
-  <td><span class="tag">{{ e.category }}</span></td>
-  <td><span class="pill {{ e.status }}">{{ "Downloaded" if e.status == "downloaded" else "Link only" }}</span></td>
+  <td>
+    {% for part in e.category.split('/') %}{% if not loop.first %}<span class="crumb-sep">/</span>{% endif %}<span class="tag">{{ part }}</span>{% endfor %}
+  </td>
+  <td>
+    <span class="pill {{ e.status }}">{{ "Downloaded" if e.status == "downloaded" else "Link only" }}</span>
+    {% if e.pushed_to_stash %}<span class="pill pushed">In Stash</span>{% endif %}
+  </td>
   <td class="muted">{{ e.note or "" }}</td>
   <td class="muted">{{ e.added_at }}</td>
   <td>
-    <form method="post" action="/delete/{{ idx }}" onsubmit="return confirm('Remove this entry from the log?');">
+    {% if e.status == "link_only" and not e.pushed_to_stash %}
+    <form method="post" action="/push/{{ idx }}" style="display:inline;">
+      <button type="submit" class="push-btn">Push to Stash</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/delete/{{ idx }}" onsubmit="return confirm('Remove this entry from the log?');" style="display:inline;">
       <button type="submit" class="link-btn">Remove</button>
     </form>
   </td>
@@ -147,15 +178,16 @@ BATCH_PAGE = """
 """ + NAV + """
 <h1>Add a batch of links</h1>
 <p class="muted">Paste one URL per line &mdash; links you picked yourself while browsing.
-Optionally add a category per line as <code>url, category</code>; otherwise the default below is used.</p>
+Optionally add a category per line as <code>url, category</code> (use "/" to nest folders,
+e.g. <code>favorites/holiday</code>); otherwise the default below is used.</p>
 <form method="post" action="/batch">
-  <div class="field"><textarea name="urls" rows="10" cols="70" placeholder="https://example.com/video-1&#10;https://example.com/video-2, favorites"></textarea></div>
+  <div class="field"><textarea name="urls" rows="10" cols="70" placeholder="https://example.com/video-1&#10;https://example.com/video-2, favorites/holiday"></textarea></div>
   <div class="field">
     Default category:
     <select name="default_category">
       {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
     </select>
-    or new: <input type="text" name="new_default_category" placeholder="type a new category">
+    or new: <input type="text" name="new_default_category" placeholder="e.g. favorites/holiday">
   </div>
   <div class="field actions">
     <label><input type="radio" name="action" value="auto" checked> Auto (download if supported, else link)</label>
@@ -190,9 +222,17 @@ Optionally add a category per line as <code>url, category</code>; otherwise the 
 """
 
 
-def _filtered_indexed_entries(q):
+def _filtered_indexed_entries(q, folder):
     entries = downloader.load_link_entries()
     indexed = list(enumerate(entries))
+
+    if folder:
+        indexed = [
+            (i, e) for i, e in indexed
+            if e.get("category", "uncategorized") == folder
+            or e.get("category", "uncategorized").startswith(folder + "/")
+        ]
+
     if q:
         q_lower = q.lower()
         indexed = [
@@ -201,6 +241,7 @@ def _filtered_indexed_entries(q):
             or q_lower in e.get("title", "").lower()
             or q_lower in e.get("category", "").lower()
         ]
+
     indexed.reverse()
     return indexed, entries
 
@@ -208,7 +249,8 @@ def _filtered_indexed_entries(q):
 def _render_index(result=None):
     config = downloader.load_config()
     q = request.args.get("q", "").strip()
-    indexed_entries, all_entries = _filtered_indexed_entries(q)
+    folder = request.args.get("folder", "").strip()
+    indexed_entries, all_entries = _filtered_indexed_entries(q, folder)
     current_bytes = downloader.get_library_size_bytes(config["library_root"])
     max_bytes = config.get("max_library_bytes", 1) or 1
 
@@ -217,6 +259,8 @@ def _render_index(result=None):
         categories=config.get("categories", ["uncategorized"]),
         entries=indexed_entries,
         q=q,
+        folder=folder,
+        folders=downloader.top_level_folders(all_entries),
         downloaded_count=sum(1 for e in all_entries if e.get("status") == "downloaded"),
         link_only_count=sum(1 for e in all_entries if e.get("status") == "link_only"),
         current_gb=current_bytes / (1024 ** 3),
@@ -244,6 +288,20 @@ def add():
 @app.route("/delete/<int:idx>", methods=["POST"])
 def delete(idx):
     downloader.delete_entry(idx)
+    return redirect(url_for("index"))
+
+
+@app.route("/push/<int:idx>", methods=["POST"])
+def push(idx):
+    config = downloader.load_config()
+    entries = downloader.load_link_entries()
+    if 0 <= idx < len(entries):
+        success, message = downloader.push_to_stash(entries[idx], config)
+        if success:
+            downloader.mark_pushed(idx)
+        # message isn't surfaced yet beyond server logs; a future pass could
+        # flash it. For now, print so it's visible while the app is running.
+        print(f"push_to_stash idx={idx} success={success} message={message}")
     return redirect(url_for("index"))
 
 

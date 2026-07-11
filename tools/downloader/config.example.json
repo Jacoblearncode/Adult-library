@@ -4,5 +4,7 @@
   "categories": [
     "uncategorized",
     "favorites"
-  ]
+  ],
+  "stash_url": "http://localhost:9999/graphql",
+  "stash_api_key": ""
 }
