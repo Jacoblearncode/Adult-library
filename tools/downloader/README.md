@@ -13,6 +13,10 @@ or your private Tailscale network.
 ## Setup
 
 1. Install Python 3.10+ if you don't have it.
+1b. Install [ffmpeg](https://www.gyan.dev/ffmpeg/builds/) and make sure it's
+    on your PATH. Needed for merging video+audio into mp4, extracting audio,
+    and embedding source metadata into the file (see below) — without it,
+    downloads may still work for some sites but skip these steps.
 2. From this folder:
    ```
    pip install -r requirements.txt
@@ -64,6 +68,25 @@ table gets a **"Push to Stash"** button. This creates a URL-only scene in
 Stash via its GraphQL API — no file, just title/URL/category metadata — so
 it shows up in Stash's browsing grid as a title card. Once pushed, the row
 is marked "In Stash" and won't be pushed again.
+
+## Download quality and source tracking
+
+- Pick a quality per link (Best / 1080p max / 720p max / Audio only) on
+  either the single-add or batch form; batch lines can also override it
+  individually as `url, category, quality`.
+- Downloads are normalized to mp4 (or mp3 for audio-only) for consistent
+  playback.
+- Every download writes a `<title>.info.json` sidecar next to the video
+  with the full source metadata (including the original URL), and embeds
+  a `purl` metadata tag with the source URL directly into the video file
+  itself — so you can recover where a video came from even if it's moved
+  or renamed later, or if `link_entries.json` itself is ever lost. The
+  history table also shows a direct "source" link and the saved file path
+  per entry.
+- After a download, the tool checks the file actually exists and isn't
+  empty before marking it "downloaded" — if postprocessing silently failed
+  (e.g. ffmpeg missing), it logs a link-only entry with a note instead of
+  a false success.
 
 ## After downloading
 

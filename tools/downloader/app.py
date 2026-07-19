@@ -92,6 +92,15 @@ PAGE = """
     or new: <input type="text" name="new_category" placeholder="e.g. favorites/holiday">
     <div class="hint">Use "/" to nest folders, e.g. <code>favorites/holiday</code> &mdash; matches how files get organized on disk.</div>
   </div>
+  <div class="field">
+    Quality (if downloaded):
+    <select name="quality">
+      <option value="best" selected>Best available</option>
+      <option value="1080p">1080p max</option>
+      <option value="720p">720p max</option>
+      <option value="audio">Audio only</option>
+    </select>
+  </div>
   <div class="field actions">
     <label><input type="radio" name="action" value="auto" checked> Auto (download if supported, else link)</label>
     <label><input type="radio" name="action" value="download"> Force download attempt</label>
@@ -144,7 +153,13 @@ PAGE = """
 <tr><th>Title / URL</th><th>Category</th><th>Status</th><th>Note</th><th>Added</th><th></th></tr>
 {% for idx, e in entries %}
 <tr>
-  <td class="url-cell" title="{{ e.url }}">{{ e.title or e.url }}</td>
+  <td class="url-cell" title="{{ e.url }}">
+    {{ e.title or e.url }}
+    <div class="muted" style="font-size:0.75rem; white-space:normal;">
+      <a href="{{ e.url }}" target="_blank" rel="noopener">source</a>
+      {% if e.file_path %} &middot; {{ e.file_path }}{% endif %}
+    </div>
+  </td>
   <td>
     {% for part in e.category.split('/') %}{% if not loop.first %}<span class="crumb-sep">/</span>{% endif %}<span class="tag">{{ part }}</span>{% endfor %}
   </td>
@@ -178,16 +193,27 @@ BATCH_PAGE = """
 """ + NAV + """
 <h1>Add a batch of links</h1>
 <p class="muted">Paste one URL per line &mdash; links you picked yourself while browsing.
-Optionally add a category per line as <code>url, category</code> (use "/" to nest folders,
-e.g. <code>favorites/holiday</code>); otherwise the default below is used.</p>
+Optionally add a category and/or quality per line as <code>url, category, quality</code>
+(use "/" to nest folders, e.g. <code>favorites/holiday</code>; quality is one of
+<code>best</code>, <code>1080p</code>, <code>720p</code>, <code>audio</code>); leave either
+blank to fall back to the defaults below.</p>
 <form method="post" action="/batch">
-  <div class="field"><textarea name="urls" rows="10" cols="70" placeholder="https://example.com/video-1&#10;https://example.com/video-2, favorites/holiday"></textarea></div>
+  <div class="field"><textarea name="urls" rows="10" cols="70" placeholder="https://example.com/video-1&#10;https://example.com/video-2, favorites/holiday, 720p"></textarea></div>
   <div class="field">
     Default category:
     <select name="default_category">
       {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
     </select>
     or new: <input type="text" name="new_default_category" placeholder="e.g. favorites/holiday">
+  </div>
+  <div class="field">
+    Default quality (if downloaded):
+    <select name="default_quality">
+      <option value="best" selected>Best available</option>
+      <option value="1080p">1080p max</option>
+      <option value="720p">720p max</option>
+      <option value="audio">Audio only</option>
+    </select>
   </div>
   <div class="field actions">
     <label><input type="radio" name="action" value="auto" checked> Auto (download if supported, else link)</label>
@@ -280,8 +306,9 @@ def add():
     url = request.form["url"].strip()
     category = request.form.get("new_category", "").strip() or request.form.get("category", "uncategorized")
     action = request.form.get("action", "auto")
+    quality = request.form.get("quality", "best")
 
-    result = downloader.process_url(url, category, action, config)
+    result = downloader.process_url(url, category, action, config, quality=quality)
     return _render_index(result=result)
 
 
@@ -324,8 +351,9 @@ def batch_submit():
         or request.form.get("default_category", "uncategorized")
     )
     action = request.form.get("action", "auto")
+    default_quality = request.form.get("default_quality", "best")
 
-    results = downloader.process_batch(urls_text, default_category, action, config)
+    results = downloader.process_batch(urls_text, default_category, action, config, default_quality=default_quality)
 
     return render_template_string(
         BATCH_PAGE,

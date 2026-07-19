@@ -37,7 +37,7 @@ def save_link_entries(entries):
         json.dump(entries, f, indent=2)
 
 
-def add_history_entry(url, category, status, title="", note=""):
+def add_history_entry(url, category, status, title="", note="", file_path=""):
     entries = load_link_entries()
     entries.append({
         "url": url,
@@ -45,6 +45,7 @@ def add_history_entry(url, category, status, title="", note=""):
         "status": status,
         "title": title,
         "note": note,
+        "file_path": file_path,
         "pushed_to_stash": False,
         "added_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     })
@@ -142,7 +143,17 @@ def _progress_hook(d):
         sys.stdout.flush()
 
 
-def download_url(url, category, config):
+# Quality choices exposed in the UI, mapped to yt-dlp format selectors.
+# "best" leaves format selection to yt-dlp's own default.
+QUALITY_FORMATS = {
+    "best": None,
+    "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+    "720p": "bestvideo[height<=720]+bestaudio/best[height<=720]",
+    "audio": "bestaudio/best",
+}
+
+
+def download_url(url, category, config, quality="best"):
     """Attempt to download via yt-dlp into the category folder.
 
     Returns a dict describing the outcome.
@@ -178,6 +189,13 @@ def download_url(url, category, config):
             "category": category,
         }
 
+    final_path_holder = {}
+
+    def _pp_hook(d):
+        if d.get("status") == "finished":
+            info_dict = d.get("info_dict") or {}
+            final_path_holder["path"] = info_dict.get("filepath") or d.get("filename")
+
     ydl_opts = {
         "outtmpl": str(target_dir / "%(title)s.%(ext)s"),
         "download_archive": str(ARCHIVE_PATH),
@@ -185,16 +203,53 @@ def download_url(url, category, config):
         "no_warnings": True,
         "noprogress": True,
         "progress_hooks": [_progress_hook],
+        "postprocessor_hooks": [_pp_hook],
+        # Consistent container so playback/Stash preview behaves the same
+        # across sources, instead of whatever mkv/webm a site happens to serve.
+        "merge_output_format": "mp4",
+        # Sidecar <title>.info.json next to the video, containing the
+        # original webpage_url and full metadata — survives even if the
+        # file gets moved away from this tool's own history log.
+        "writeinfojson": True,
     }
+    format_selector = QUALITY_FORMATS.get(quality)
+    if format_selector:
+        ydl_opts["format"] = format_selector
+
+    # Embeds metadata into the video file itself (via ffmpeg), including a
+    # "purl" tag with the source URL — the most durable copy, since it
+    # travels with the file even if renamed or moved elsewhere. When
+    # extracting audio, that has to run first so metadata embeds into the
+    # final mp3, not the discarded video container.
+    postprocessors = []
+    if quality == "audio":
+        postprocessors.append({"key": "FFmpegExtractAudio", "preferredcodec": "mp3"})
+    postprocessors.append({"key": "FFmpegMetadata", "add_metadata": True})
+    ydl_opts["postprocessors"] = postprocessors
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
         title = info.get("title", url)
-        add_history_entry(url, category, "downloaded", title=title)
+
+        file_path = final_path_holder.get("path", "")
+        if not file_path or not Path(file_path).exists() or Path(file_path).stat().st_size == 0:
+            add_history_entry(
+                url, category, "link_only",
+                note="download reported success but no file was found (possibly missing ffmpeg)",
+            )
+            return {
+                "status": "link_only",
+                "reason": "download produced no file",
+                "category": category,
+            }
+
+        add_history_entry(url, category, "downloaded", title=title, file_path=file_path)
         return {
             "status": "downloaded",
             "category": category,
             "title": title,
+            "file_path": file_path,
         }
     except Exception as e:
         add_history_entry(url, category, "link_only", note=f"download failed: {e}")
@@ -205,32 +260,29 @@ def download_url(url, category, config):
         }
 
 
-def process_url(url, category, action, config):
+def process_url(url, category, action, config, quality="best"):
     """action: 'auto' | 'download' | 'link'"""
     if action == "link":
         add_history_entry(url, category, "link_only", note="forced link-only")
         return {"status": "link_only", "reason": "forced link-only", "category": category}
 
-    return download_url(url, category, config)
+    return download_url(url, category, config, quality=quality)
 
 
-def parse_batch_input(text, default_category):
-    """Parse a textarea of URLs (one per line, optional ", category" suffix)
-    into a list of (url, category) tuples.
+def parse_batch_input(text, default_category, default_quality="best"):
+    """Parse a textarea of URLs (one per line, optional ", category, quality"
+    suffix) into a list of (url, category, quality) tuples.
     """
     items = []
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
-        if "," in line:
-            url, category = line.split(",", 1)
-            url = url.strip()
-            category = category.strip() or default_category
-        else:
-            url = line
-            category = default_category
-        items.append((url, category))
+        parts = [p.strip() for p in line.split(",")]
+        url = parts[0]
+        category = parts[1] if len(parts) > 1 and parts[1] else default_category
+        quality = parts[2] if len(parts) > 2 and parts[2] else default_quality
+        items.append((url, category, quality))
     return items
 
 
@@ -286,13 +338,13 @@ def push_to_stash(entry, config):
         return False, str(e)
 
 
-def process_batch(text, default_category, action, config):
+def process_batch(text, default_category, action, config, default_quality="best"):
     """Run process_url over every line of a batch textarea. Returns a list
     of result dicts (each with the source url/category attached).
     """
     results = []
-    for url, category in parse_batch_input(text, default_category):
-        result = process_url(url, category, action, config)
+    for url, category, quality in parse_batch_input(text, default_category, default_quality):
+        result = process_url(url, category, action, config, quality=quality)
         result = dict(result)
         result["url"] = url
         results.append(result)

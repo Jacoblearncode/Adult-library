@@ -121,6 +121,16 @@ category/type/length/style before deciding which.
       API, once `stash_url` / `stash_api_key` are set in `config.json`
 - [ ] Generate a Stash API key and confirm the "Push to Stash" button works
       end-to-end
+- [x] Quality selector per link (best / 1080p / 720p / audio-only), mp4/mp3
+      normalization for consistent playback
+- [x] Source-of-truth tracking so a downloaded video can't get orphaned
+      from where it came from: `.info.json` sidecar, embedded `purl`
+      metadata tag in the file itself, and a source link + file path shown
+      in the history table
+- [x] Post-download integrity check (file exists, non-empty) before
+      logging a download as successful, instead of trusting yt-dlp blindly
+- [ ] Install ffmpeg (needed for mp4 merging, audio extraction, and
+      metadata embedding — see `tools/downloader/README.md`)
 
 ---
 
