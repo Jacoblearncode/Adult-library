@@ -47,11 +47,26 @@ same download-or-link logic in one batch instead of one at a time.
 ## How it decides download vs link-only
 
 - Tries `yt-dlp` extraction first (no download yet, just a probe).
-- If the site isn't supported (most adult tube sites won't be, by yt-dlp's
-  own policy), or the estimated file size would push the library over the
-  configured cap, it automatically logs a **link-only** entry instead.
+- If yt-dlp doesn't recognize the site, it tries one more thing: a **direct
+  file fallback**. If the URL points straight at an actual video file (by
+  extension, or the server reports a `video/*` content type), it downloads
+  that file directly with a plain HTTP request — no scraping, it only ever
+  fetches the exact URL you gave it, same as pasting it into a browser.
+  This covers self-hosted clips, direct CDN links, and smaller sites yt-dlp
+  has no extractor for.
+- If neither works, or the estimated file size would push the library over
+  the configured cap, it logs a **link-only** entry instead.
 - The `.download-archive.txt` file (yt-dlp's own dedup mechanism) prevents
   re-downloading the same video twice.
+
+## Download queue
+
+Adding a link or a batch no longer blocks the page while the download runs
+— it queues the job and redirects to **/queue**, where a single background
+worker processes downloads one at a time. The queue page auto-refreshes
+every 3 seconds while anything is queued or running. Queue state is
+in-memory only (cleared on restart) — the actual download history in
+`link_entries.json` is unaffected.
 
 ## Folder-style categories
 

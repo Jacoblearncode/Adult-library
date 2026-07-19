@@ -11,6 +11,9 @@ import re
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlparse
+
+DIRECT_FILE_EXTENSIONS = (".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi")
 
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "config.json"
@@ -82,6 +85,11 @@ def sanitize_category(category):
     return "/".join(parts) or "uncategorized"
 
 
+def sanitize_filename(name):
+    name = re.sub(r'[<>:"/\\|?*]', "_", name).strip()
+    return name or "video"
+
+
 def top_level_folders(entries):
     seen = []
     for e in entries:
@@ -130,6 +138,87 @@ def probe_url(url):
         return False, None, str(e)
 
 
+def _try_direct_download(url, category, config):
+    """Best-effort fallback for URLs yt-dlp doesn't recognize: if the URL
+    points straight at an actual video file (by extension, or the server
+    reports a video/* content type), fetch it with a plain HTTP GET.
+
+    This is not a scraper — it only ever fetches the exact URL given, the
+    same as pasting it into a browser's address bar. Returns
+    (file_path, title) on success, or None if it doesn't look like a direct
+    file or the request fails.
+    """
+    import requests
+
+    path_lower = urlparse(url).path.lower()
+    looks_like_file = path_lower.endswith(DIRECT_FILE_EXTENSIONS)
+
+    try:
+        if not looks_like_file:
+            head = requests.head(url, timeout=10, allow_redirects=True)
+            content_type = head.headers.get("Content-Type", "")
+            if not content_type.startswith("video/"):
+                return None
+        resp = requests.get(url, stream=True, timeout=30)
+        resp.raise_for_status()
+    except Exception:
+        return None
+
+    category = sanitize_category(category)
+    library_root = Path(config["library_root"])
+    target_dir = library_root / category
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    max_bytes = config.get("max_library_bytes", 100 * 1024 ** 3)
+    current_size = get_library_size_bytes(library_root)
+    total = int(resp.headers.get("Content-Length") or 0)
+    if total and current_size + total > max_bytes:
+        resp.close()
+        return None
+
+    raw_name = Path(urlparse(url).path).name or "video"
+    stem = sanitize_filename(Path(raw_name).stem or "video")
+    ext = Path(raw_name).suffix or ".mp4"
+    dest = target_dir / f"{stem}{ext}"
+    counter = 1
+    while dest.exists():
+        dest = target_dir / f"{stem}-{counter}{ext}"
+        counter += 1
+
+    downloaded = 0
+    try:
+        with open(dest, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                if not chunk:
+                    continue
+                f.write(chunk)
+                downloaded += len(chunk)
+                if total:
+                    pct = f"{downloaded / total * 100:.1f}%"
+                else:
+                    pct = f"{downloaded / (1024 * 1024):.1f} MiB"
+                sys.stdout.write(f"\rDownloading (direct)... {pct}   ")
+                sys.stdout.flush()
+        sys.stdout.write("\rDownload complete, processing...                \n")
+        sys.stdout.flush()
+    except Exception:
+        dest.unlink(missing_ok=True)
+        return None
+
+    if not dest.exists() or dest.stat().st_size == 0:
+        dest.unlink(missing_ok=True)
+        return None
+
+    sidecar = dest.with_suffix(dest.suffix + ".info.json")
+    try:
+        with open(sidecar, "w", encoding="utf-8") as f:
+            json.dump({"title": stem, "webpage_url": url, "source": "direct-download"}, f, indent=2)
+    except OSError:
+        pass
+
+    return str(dest), stem
+
+
 def _progress_hook(d):
     """Collapse yt-dlp's per-fragment spam into a single updating line."""
     if d.get("status") == "downloading":
@@ -170,6 +259,19 @@ def download_url(url, category, config, quality="best"):
 
     supported, info, error = probe_url(url)
     if not supported:
+        direct = _try_direct_download(url, category, config)
+        if direct:
+            file_path, title = direct
+            add_history_entry(
+                url, category, "downloaded", title=title, file_path=file_path,
+                note="direct file download (no yt-dlp extractor for this site)",
+            )
+            return {
+                "status": "downloaded",
+                "category": category,
+                "title": title,
+                "file_path": file_path,
+            }
         add_history_entry(url, category, "link_only", note=f"yt-dlp unsupported: {error}")
         return {
             "status": "link_only",

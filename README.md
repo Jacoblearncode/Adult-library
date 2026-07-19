@@ -131,6 +131,11 @@ category/type/length/style before deciding which.
       logging a download as successful, instead of trusting yt-dlp blindly
 - [ ] Install ffmpeg (needed for mp4 merging, audio extraction, and
       metadata embedding — see `tools/downloader/README.md`)
+- [x] Direct-file fallback: downloads straight video-file URLs (by
+      extension or content-type) even when yt-dlp has no extractor for the
+      site — not scraping, just fetching the exact URL given
+- [x] Background download queue (`/queue`) so adding a link or batch no
+      longer freezes the page while downloads run
 
 ---
 

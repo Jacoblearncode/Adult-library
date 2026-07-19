@@ -4,11 +4,71 @@ Run with: python app.py
 Then open http://localhost:5050
 Not intended to be exposed beyond localhost / your private VPN.
 """
+import queue
+import threading
+import time
+import uuid
+
 from flask import Flask, request, render_template_string, redirect, url_for
 
 import downloader
 
 app = Flask(__name__)
+
+# --- Background download queue -------------------------------------------
+# Downloads (especially with quality selection / large batches) can take a
+# while; running them inline in the Flask request would freeze the browser
+# tab until they finish. Instead, /add and /batch just enqueue jobs and
+# redirect to /queue, and a single background worker thread processes them
+# one at a time. This state is in-memory only (lost on restart) — the
+# actual download history in link_entries.json is unaffected either way.
+JOBS = {}
+JOBS_LOCK = threading.Lock()
+JOB_QUEUE = queue.Queue()
+
+
+def _worker():
+    while True:
+        job_id = JOB_QUEUE.get()
+        with JOBS_LOCK:
+            job = JOBS[job_id]
+            job["status"] = "running"
+        config = downloader.load_config()
+        try:
+            result = downloader.process_url(
+                job["url"], job["category"], job["action"], config, quality=job["quality"]
+            )
+        except Exception as e:
+            result = {"status": "link_only", "reason": f"unexpected error: {e}"}
+        with JOBS_LOCK:
+            job["status"] = "done"
+            job["result"] = result
+        JOB_QUEUE.task_done()
+
+
+threading.Thread(target=_worker, daemon=True).start()
+
+
+def _enqueue(url, category, action, quality):
+    job_id = str(uuid.uuid4())[:8]
+    with JOBS_LOCK:
+        JOBS[job_id] = {
+            "id": job_id,
+            "url": url,
+            "category": category,
+            "action": action,
+            "quality": quality,
+            "status": "queued",
+            "result": None,
+            "submitted_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+    JOB_QUEUE.put(job_id)
+    return job_id
+
+
+def _pending_job_count():
+    with JOBS_LOCK:
+        return sum(1 for j in JOBS.values() if j["status"] in ("queued", "running"))
 
 STYLE = """
 <style>
@@ -71,8 +131,11 @@ STYLE = """
 </style>
 """
 
-NAV = """
-<nav><a href="/">Add one link</a><a href="/batch">Add a batch</a></nav>
+def _nav():
+    pending = _pending_job_count()
+    queue_label = f"Queue ({pending})" if pending else "Queue"
+    return f"""
+<nav><a href="/">Add one link</a><a href="/batch">Add a batch</a><a href="/queue">{queue_label}</a></nav>
 """
 
 PAGE = """
@@ -80,7 +143,7 @@ PAGE = """
 <title>Library Downloader</title>
 """ + STYLE + """
 <div class="card">
-""" + NAV + """
+{{ nav|safe }}
 <h1>Paste a link</h1>
 <form method="post" action="/add">
   <div class="field"><input type="text" name="url" placeholder="https://..." size="60" required></div>
@@ -108,11 +171,6 @@ PAGE = """
   </div>
   <button type="submit">Add</button>
 </form>
-
-{% if result %}
-<h1 style="margin-top:1.5rem;">Result</h1>
-<pre>{{ result }}</pre>
-{% endif %}
 </div>
 
 <div class="stats">
@@ -190,7 +248,7 @@ BATCH_PAGE = """
 <title>Library Downloader - Batch</title>
 """ + STYLE + """
 <div class="card">
-""" + NAV + """
+{{ nav|safe }}
 <h1>Add a batch of links</h1>
 <p class="muted">Paste one URL per line &mdash; links you picked yourself while browsing.
 Optionally add a category and/or quality per line as <code>url, category, quality</code>
@@ -223,28 +281,6 @@ blank to fall back to the defaults below.</p>
   <button type="submit">Process batch</button>
 </form>
 </div>
-
-{% if results is not none %}
-<div class="card">
-<h1>Batch results ({{ results|length }})</h1>
-<table>
-<tr><th>URL</th><th>Category</th><th>Status</th><th>Detail</th></tr>
-{% for r in results %}
-<tr>
-  <td class="url-cell" title="{{ r.url }}">{{ r.url }}</td>
-  <td><span class="tag">{{ r.category }}</span></td>
-  <td><span class="pill {{ r.status }}">{{ "Downloaded" if r.status == "downloaded" else "Link only" }}</span></td>
-  <td class="muted">{{ r.title or r.reason or "" }}</td>
-</tr>
-{% endfor %}
-</table>
-<p class="muted" style="margin-top:0.8rem;">
-  Downloaded: {{ results|selectattr("status", "equalto", "downloaded")|list|length }}
-  &nbsp;|&nbsp;
-  Link-only: {{ results|selectattr("status", "equalto", "link_only")|list|length }}
-</p>
-</div>
-{% endif %}
 """
 
 
@@ -272,7 +308,7 @@ def _filtered_indexed_entries(q, folder):
     return indexed, entries
 
 
-def _render_index(result=None):
+def _render_index():
     config = downloader.load_config()
     q = request.args.get("q", "").strip()
     folder = request.args.get("folder", "").strip()
@@ -282,6 +318,7 @@ def _render_index(result=None):
 
     return render_template_string(
         PAGE,
+        nav=_nav(),
         categories=config.get("categories", ["uncategorized"]),
         entries=indexed_entries,
         q=q,
@@ -291,7 +328,6 @@ def _render_index(result=None):
         link_only_count=sum(1 for e in all_entries if e.get("status") == "link_only"),
         current_gb=current_bytes / (1024 ** 3),
         max_gb=max_bytes / (1024 ** 3),
-        result=result,
     )
 
 
@@ -302,14 +338,13 @@ def index():
 
 @app.route("/add", methods=["POST"])
 def add():
-    config = downloader.load_config()
     url = request.form["url"].strip()
     category = request.form.get("new_category", "").strip() or request.form.get("category", "uncategorized")
     action = request.form.get("action", "auto")
     quality = request.form.get("quality", "best")
 
-    result = downloader.process_url(url, category, action, config, quality=quality)
-    return _render_index(result=result)
+    _enqueue(url, category, action, quality)
+    return redirect(url_for("queue_view"))
 
 
 @app.route("/delete/<int:idx>", methods=["POST"])
@@ -337,8 +372,8 @@ def batch_form():
     config = downloader.load_config()
     return render_template_string(
         BATCH_PAGE,
+        nav=_nav(),
         categories=config.get("categories", ["uncategorized"]),
-        results=None,
     )
 
 
@@ -353,13 +388,53 @@ def batch_submit():
     action = request.form.get("action", "auto")
     default_quality = request.form.get("default_quality", "best")
 
-    results = downloader.process_batch(urls_text, default_category, action, config, default_quality=default_quality)
+    for url, category, quality in downloader.parse_batch_input(urls_text, default_category, default_quality):
+        _enqueue(url, category, action, quality)
 
-    return render_template_string(
-        BATCH_PAGE,
-        categories=config.get("categories", ["uncategorized"]),
-        results=results,
-    )
+    return redirect(url_for("queue_view"))
+
+
+QUEUE_PAGE = """
+<!doctype html>
+<title>Library Downloader - Queue</title>
+""" + STYLE + """
+{% if auto_refresh %}<meta http-equiv="refresh" content="3">{% endif %}
+<div class="card">
+{{ nav|safe }}
+<h1>Download queue ({{ jobs|length }})</h1>
+<p class="muted">Downloads run in the background so the page doesn't freeze.
+{% if auto_refresh %}This page auto-refreshes every 3s while anything is queued or running.{% endif %}</p>
+<table>
+<tr><th>URL</th><th>Category</th><th>Quality</th><th>Status</th><th>Result</th><th>Submitted</th></tr>
+{% for j in jobs %}
+<tr>
+  <td class="url-cell" title="{{ j.url }}">{{ j.url }}</td>
+  <td><span class="tag">{{ j.category }}</span></td>
+  <td class="muted">{{ j.quality }}</td>
+  <td>
+    {% if j.status == "queued" %}<span class="pill link_only">Queued</span>
+    {% elif j.status == "running" %}<span class="pill pushed">Running</span>
+    {% elif j.result and j.result.status == "downloaded" %}<span class="pill downloaded">Downloaded</span>
+    {% else %}<span class="pill link_only">Link only</span>{% endif %}
+  </td>
+  <td class="muted">
+    {% if j.result %}{{ j.result.title or j.result.reason or "" }}{% endif %}
+  </td>
+  <td class="muted">{{ j.submitted_at }}</td>
+</tr>
+{% endfor %}
+</table>
+{% if not jobs %}<p class="muted">Nothing queued yet &mdash; add a link or a batch to get started.</p>{% endif %}
+</div>
+"""
+
+
+@app.route("/queue", methods=["GET"])
+def queue_view():
+    with JOBS_LOCK:
+        jobs = sorted(JOBS.values(), key=lambda j: j["submitted_at"], reverse=True)
+        auto_refresh = any(j["status"] in ("queued", "running") for j in jobs)
+    return render_template_string(QUEUE_PAGE, nav=_nav(), jobs=jobs, auto_refresh=auto_refresh)
 
 
 if __name__ == "__main__":
