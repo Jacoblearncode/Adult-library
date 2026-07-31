@@ -413,9 +413,13 @@ def push_to_stash(entry, config):
         return False, "stash_api_key not set in config.json"
 
     title = entry.get("title") or entry["url"]
-    details_bits = [f"category: {entry.get('category', 'uncategorized')}"]
+    # The source URL also goes into Stash's structured "urls" field, but
+    # that isn't surfaced prominently in Stash's UI for file-less scenes.
+    # Putting it as the first line of the description guarantees it's
+    # visible directly under the title with no digging required.
+    details_bits = [f"Source: {entry['url']}", f"Category: {entry.get('category', 'uncategorized')}"]
     if entry.get("note"):
-        details_bits.append(entry["note"])
+        details_bits.append(f"Note: {entry['note']}")
 
     try:
         resp = requests.post(
@@ -425,7 +429,7 @@ def push_to_stash(entry, config):
                 "variables": {
                     "title": title,
                     "urls": [entry["url"]],
-                    "details": " | ".join(details_bits),
+                    "details": "\n".join(details_bits),
                 },
             },
             headers={"ApiKey": api_key},

@@ -84,6 +84,14 @@ Stash via its GraphQL API — no file, just title/URL/category metadata — so
 it shows up in Stash's browsing grid as a title card. Once pushed, the row
 is marked "In Stash" and won't be pushed again.
 
+**Finding the source link in Stash**: since there's no video file, there's
+nothing to play — open the scene and the source URL is the **first line of
+the description**, right under the title (Stash's structured "urls" field
+also gets it, but isn't surfaced prominently for file-less scenes, so the
+description is the reliable place to look). This only applies to scenes
+pushed after this was added — anything pushed earlier needs re-pushing to
+pick up the improved description.
+
 ## Download quality and source tracking
 
 - Pick a quality per link (Best / 1080p max / 720p max / Audio only) on
