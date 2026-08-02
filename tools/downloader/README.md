@@ -115,3 +115,40 @@ pick up the improved description.
 
 Files land in `<library_root>/<category>/`. Run a **Scan** in Stash to pick
 them up and get real thumbnails.
+
+## Duplicate detection and retry
+
+- Adding a URL that's already in history is skipped under "Auto" mode — you
+  get a warning message telling you its existing status instead of a
+  duplicate entry. Pick "Force download attempt" (single add) if you really
+  want to add it again anyway; batch mode follows the same rule per line
+  and reports how many were skipped.
+- Every link-only row gets a **Retry** button — re-queues the same URL
+  (same category/quality) for another attempt instead of you having to
+  copy-paste it back into the form. Useful for transient failures like
+  connection resets.
+- A **"Push all link-only to Stash"** button above the history table pushes
+  every not-yet-pushed link-only entry in one click instead of one row at a
+  time.
+- Push/retry/delete results now show as a message banner on the page
+  instead of only printing to the terminal.
+
+## Status filter
+
+Next to the search box, a dropdown filters the history table to just
+Downloaded or just Link-only entries, on top of the existing folder chips
+and text search.
+
+## Locking it down with basic auth
+
+Off by default so a fresh install just works. Set `auth_username` and
+`auth_password` in `config.json` to require a login before the app will
+respond to anything — do this before ever exposing the app beyond
+localhost (e.g. over Tailscale to share with a friend), same as the
+Security step in `STASH_SETUP.md`.
+
+## One-click launcher
+
+`start.bat` in the repo root starts Stash, starts this app, and opens both
+in your browser. Edit the `STASH_EXE` path at the top of the file once to
+match where you installed Stash, then just double-click it going forward.

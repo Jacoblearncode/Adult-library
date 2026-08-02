@@ -6,5 +6,7 @@
     "favorites"
   ],
   "stash_url": "http://localhost:9999/graphql",
-  "stash_api_key": ""
+  "stash_api_key": "",
+  "auth_username": "",
+  "auth_password": ""
 }

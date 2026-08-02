@@ -40,7 +40,7 @@ def save_link_entries(entries):
         json.dump(entries, f, indent=2)
 
 
-def add_history_entry(url, category, status, title="", note="", file_path=""):
+def add_history_entry(url, category, status, title="", note="", file_path="", quality="best"):
     entries = load_link_entries()
     entries.append({
         "url": url,
@@ -49,11 +49,18 @@ def add_history_entry(url, category, status, title="", note="", file_path=""):
         "title": title,
         "note": note,
         "file_path": file_path,
+        "quality": quality,
         "pushed_to_stash": False,
         "added_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     })
     save_link_entries(entries)
     return entries
+
+
+def find_existing_entry(url):
+    """Return the most recent history entry for this exact URL, or None."""
+    matches = [e for e in load_link_entries() if e.get("url") == url]
+    return matches[-1] if matches else None
 
 
 def delete_entry(index):
@@ -265,6 +272,7 @@ def download_url(url, category, config, quality="best"):
             add_history_entry(
                 url, category, "downloaded", title=title, file_path=file_path,
                 note="direct file download (no yt-dlp extractor for this site)",
+                quality=quality,
             )
             return {
                 "status": "downloaded",
@@ -272,7 +280,7 @@ def download_url(url, category, config, quality="best"):
                 "title": title,
                 "file_path": file_path,
             }
-        add_history_entry(url, category, "link_only", note=f"yt-dlp unsupported: {error}")
+        add_history_entry(url, category, "link_only", note=f"yt-dlp unsupported: {error}", quality=quality)
         return {
             "status": "link_only",
             "reason": error or "URL not supported by yt-dlp",
@@ -284,6 +292,7 @@ def download_url(url, category, config, quality="best"):
         add_history_entry(
             url, category, "link_only",
             note=f"skipped download: would exceed {max_bytes / (1024**3):.1f} GB cap",
+            quality=quality,
         )
         return {
             "status": "link_only",
@@ -339,6 +348,7 @@ def download_url(url, category, config, quality="best"):
             add_history_entry(
                 url, category, "link_only",
                 note="download reported success but no file was found (possibly missing ffmpeg)",
+                quality=quality,
             )
             return {
                 "status": "link_only",
@@ -346,7 +356,7 @@ def download_url(url, category, config, quality="best"):
                 "category": category,
             }
 
-        add_history_entry(url, category, "downloaded", title=title, file_path=file_path)
+        add_history_entry(url, category, "downloaded", title=title, file_path=file_path, quality=quality)
         return {
             "status": "downloaded",
             "category": category,
@@ -354,7 +364,7 @@ def download_url(url, category, config, quality="best"):
             "file_path": file_path,
         }
     except Exception as e:
-        add_history_entry(url, category, "link_only", note=f"download failed: {e}")
+        add_history_entry(url, category, "link_only", note=f"download failed: {e}", quality=quality)
         return {
             "status": "link_only",
             "reason": f"download failed: {e}",
@@ -442,6 +452,25 @@ def push_to_stash(entry, config):
         return True, data["data"]["sceneCreate"]["id"]
     except Exception as e:
         return False, str(e)
+
+
+def push_all_unpushed_to_stash(config):
+    """Push every link-only, not-yet-pushed entry to Stash. Returns
+    (pushed_count, failed_count).
+    """
+    entries = load_link_entries()
+    pushed = 0
+    failed = 0
+    for idx, entry in enumerate(entries):
+        if entry.get("status") != "link_only" or entry.get("pushed_to_stash"):
+            continue
+        success, _message = push_to_stash(entry, config)
+        if success:
+            mark_pushed(idx)
+            pushed += 1
+        else:
+            failed += 1
+    return pushed, failed
 
 
 def process_batch(text, default_category, action, config, default_quality="best"):

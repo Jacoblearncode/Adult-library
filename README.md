@@ -136,6 +136,16 @@ category/type/length/style before deciding which.
       site — not scraping, just fetching the exact URL given
 - [x] Background download queue (`/queue`) so adding a link or batch no
       longer freezes the page while downloads run
+- [x] Flash messages for push/retry/delete instead of terminal-only feedback
+- [x] Duplicate URL detection (skipped under Auto, with a warning) and a
+      Retry button per link-only row
+- [x] Status filter dropdown (Downloaded / Link-only) alongside search and
+      folder chips
+- [x] Basic auth (off by default; set `auth_username`/`auth_password` in
+      `config.json` before ever exposing beyond localhost)
+- [x] "Push all link-only to Stash" bulk button
+- [x] `start.bat` one-click launcher for Stash + the downloader app
+      (edit the `STASH_EXE` path inside it once)
 
 ---
 

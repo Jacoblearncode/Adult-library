@@ -5,15 +5,38 @@ Then open http://localhost:5050
 Not intended to be exposed beyond localhost / your private VPN.
 """
 import queue
+import secrets
 import threading
 import time
 import uuid
 
-from flask import Flask, request, render_template_string, redirect, url_for
+from flask import Flask, request, render_template_string, redirect, url_for, flash
 
 import downloader
 
 app = Flask(__name__)
+app.secret_key = secrets.token_hex(16)  # only needed for flash messages; regenerated each restart
+
+# --- Basic auth ------------------------------------------------------------
+# Off by default so a fresh install still just works. Set auth_username and
+# auth_password in config.json to require a login — do this before ever
+# exposing this app beyond localhost (e.g. over Tailscale).
+@app.before_request
+def _require_auth():
+    config = downloader.load_config()
+    username = config.get("auth_username")
+    password = config.get("auth_password")
+    if not username or not password:
+        return None
+    auth = request.authorization
+    if not auth or auth.username != username or auth.password != password:
+        return (
+            "Login required",
+            401,
+            {"WWW-Authenticate": 'Basic realm="Library Downloader"'},
+        )
+    return None
+
 
 # --- Background download queue -------------------------------------------
 # Downloads (especially with quality selection / large batches) can take a
@@ -70,10 +93,11 @@ def _pending_job_count():
     with JOBS_LOCK:
         return sum(1 for j in JOBS.values() if j["status"] in ("queued", "running"))
 
+
 STYLE = """
 <style>
   :root { --accent: #4f46e5; --bg: #f4f5f9; --card: #ffffff; --border: #e4e5ec;
-          --text: #1f2130; --muted: #6b6f80; --green: #16a34a; --gray: #6b7280; }
+          --text: #1f2130; --muted: #6b6f80; --green: #16a34a; --gray: #6b7280; --red: #dc2626; }
   * { box-sizing: border-box; }
   body { margin: 0; padding: 2.5rem; background: var(--bg); color: var(--text);
          font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
@@ -95,9 +119,17 @@ STYLE = """
   button.link-btn:hover { color: #dc2626; opacity: 1; text-decoration: underline; }
   button.push-btn { background: none; color: var(--accent); padding: 0.2rem 0.4rem; font-weight: 600; font-size: 0.82rem; }
   button.push-btn:hover { text-decoration: underline; opacity: 1; }
+  button.retry-btn { background: none; color: #b45309; padding: 0.2rem 0.4rem; font-weight: 600; font-size: 0.82rem; }
+  button.retry-btn:hover { text-decoration: underline; opacity: 1; }
+  button.secondary { background: none; border: 1px solid var(--border); color: var(--text); }
   .field { margin-bottom: 1rem; }
   .actions label { margin-right: 1.25rem; font-weight: 400; font-size: 0.9rem; }
   .hint { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
+
+  .flash { padding: 0.7rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem; max-width: 960px; margin-left: auto; margin-right: auto; }
+  .flash.success { background: #dcfce7; color: var(--green); }
+  .flash.warning { background: #fef3c7; color: #92400e; }
+  .flash.error { background: #fee2e2; color: var(--red); }
 
   .stats { display: flex; gap: 1rem; max-width: 960px; margin: 0 auto 1.5rem; }
   .stat { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 14px;
@@ -124,12 +156,22 @@ STYLE = """
   pre { background: #f6f7fb; border-radius: 8px; padding: 0.9rem; overflow-x: auto; }
   .searchbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
   .searchbar input { flex: 1; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
   .folders { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
   .folder-chip { display: inline-block; padding: 0.3rem 0.75rem; border-radius: 999px; font-size: 0.85rem;
                  background: #f1f2f6; color: var(--text); text-decoration: none; }
   .folder-chip.active { background: var(--accent); color: #fff; }
 </style>
 """
+
+FLASHES = """
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="flash {{ category }}">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+"""
+
 
 def _nav():
     pending = _pending_job_count()
@@ -138,10 +180,11 @@ def _nav():
 <nav><a href="/">Add one link</a><a href="/batch">Add a batch</a><a href="/queue">{queue_label}</a></nav>
 """
 
+
 PAGE = """
 <!doctype html>
 <title>Library Downloader</title>
-""" + STYLE + """
+""" + STYLE + FLASHES + """
 <div class="card">
 {{ nav|safe }}
 <h1>Paste a link</h1>
@@ -169,7 +212,8 @@ PAGE = """
     <label><input type="radio" name="action" value="download"> Force download attempt</label>
     <label><input type="radio" name="action" value="link"> Force link-only</label>
   </div>
-  <button type="submit">Add</button>
+  <div class="hint">Pasting a URL that's already in history is skipped under "Auto" (use Retry on its row instead) &mdash; pick "Force download attempt" here to add it again anyway.</div>
+  <button type="submit" style="margin-top:0.75rem;">Add</button>
 </form>
 </div>
 
@@ -191,13 +235,20 @@ PAGE = """
 </div>
 
 <div class="card">
-<h1>Library history ({{ entries|length }})</h1>
+<div class="toolbar">
+  <h1 style="margin:0;">Library history ({{ entries|length }})</h1>
+  {% if link_only_count %}
+  <form method="post" action="/push_all">
+    <button type="submit" class="secondary">Push all link-only to Stash</button>
+  </form>
+  {% endif %}
+</div>
 
 {% if folders %}
 <div class="folders">
-  <a class="folder-chip {% if not folder %}active{% endif %}" href="{{ url_for('index', q=q) }}">All</a>
+  <a class="folder-chip {% if not folder %}active{% endif %}" href="{{ url_for('index', q=q, status=status) }}">All folders</a>
   {% for f in folders %}
-  <a class="folder-chip {% if folder == f %}active{% endif %}" href="{{ url_for('index', q=q, folder=f) }}">{{ f }}</a>
+  <a class="folder-chip {% if folder == f %}active{% endif %}" href="{{ url_for('index', q=q, folder=f, status=status) }}">{{ f }}</a>
   {% endfor %}
 </div>
 {% endif %}
@@ -205,6 +256,11 @@ PAGE = """
 <form class="searchbar" method="get" action="/">
   {% if folder %}<input type="hidden" name="folder" value="{{ folder }}">{% endif %}
   <input type="text" name="q" value="{{ q or '' }}" placeholder="Search by URL, title, or category">
+  <select name="status">
+    <option value="" {% if not status %}selected{% endif %}>All statuses</option>
+    <option value="downloaded" {% if status == "downloaded" %}selected{% endif %}>Downloaded</option>
+    <option value="link_only" {% if status == "link_only" %}selected{% endif %}>Link only</option>
+  </select>
   <button type="submit">Search</button>
 </form>
 <table>
@@ -228,6 +284,11 @@ PAGE = """
   <td class="muted">{{ e.note or "" }}</td>
   <td class="muted">{{ e.added_at }}</td>
   <td>
+    {% if e.status == "link_only" %}
+    <form method="post" action="/retry/{{ idx }}" style="display:inline;">
+      <button type="submit" class="retry-btn">Retry</button>
+    </form>
+    {% endif %}
     {% if e.status == "link_only" and not e.pushed_to_stash %}
     <form method="post" action="/push/{{ idx }}" style="display:inline;">
       <button type="submit" class="push-btn">Push to Stash</button>
@@ -246,7 +307,7 @@ PAGE = """
 BATCH_PAGE = """
 <!doctype html>
 <title>Library Downloader - Batch</title>
-""" + STYLE + """
+""" + STYLE + FLASHES + """
 <div class="card">
 {{ nav|safe }}
 <h1>Add a batch of links</h1>
@@ -254,7 +315,7 @@ BATCH_PAGE = """
 Optionally add a category and/or quality per line as <code>url, category, quality</code>
 (use "/" to nest folders, e.g. <code>favorites/holiday</code>; quality is one of
 <code>best</code>, <code>1080p</code>, <code>720p</code>, <code>audio</code>); leave either
-blank to fall back to the defaults below.</p>
+blank to fall back to the defaults below. URLs already in history are skipped under "Auto".</p>
 <form method="post" action="/batch">
   <div class="field"><textarea name="urls" rows="10" cols="70" placeholder="https://example.com/video-1&#10;https://example.com/video-2, favorites/holiday, 720p"></textarea></div>
   <div class="field">
@@ -284,7 +345,7 @@ blank to fall back to the defaults below.</p>
 """
 
 
-def _filtered_indexed_entries(q, folder):
+def _filtered_indexed_entries(q, folder, status):
     entries = downloader.load_link_entries()
     indexed = list(enumerate(entries))
 
@@ -294,6 +355,9 @@ def _filtered_indexed_entries(q, folder):
             if e.get("category", "uncategorized") == folder
             or e.get("category", "uncategorized").startswith(folder + "/")
         ]
+
+    if status:
+        indexed = [(i, e) for i, e in indexed if e.get("status") == status]
 
     if q:
         q_lower = q.lower()
@@ -312,7 +376,8 @@ def _render_index():
     config = downloader.load_config()
     q = request.args.get("q", "").strip()
     folder = request.args.get("folder", "").strip()
-    indexed_entries, all_entries = _filtered_indexed_entries(q, folder)
+    status = request.args.get("status", "").strip()
+    indexed_entries, all_entries = _filtered_indexed_entries(q, folder, status)
     current_bytes = downloader.get_library_size_bytes(config["library_root"])
     max_bytes = config.get("max_library_bytes", 1) or 1
 
@@ -323,6 +388,7 @@ def _render_index():
         entries=indexed_entries,
         q=q,
         folder=folder,
+        status=status,
         folders=downloader.top_level_folders(all_entries),
         downloaded_count=sum(1 for e in all_entries if e.get("status") == "downloaded"),
         link_only_count=sum(1 for e in all_entries if e.get("status") == "link_only"),
@@ -343,6 +409,15 @@ def add():
     action = request.form.get("action", "auto")
     quality = request.form.get("quality", "best")
 
+    existing = downloader.find_existing_entry(url)
+    if existing and action == "auto":
+        flash(
+            f'Already in history (status: {existing["status"]}, added {existing["added_at"]}) — '
+            f'not adding again. Use Retry on that row, or "Force download attempt" here if you mean it.',
+            "warning",
+        )
+        return redirect(url_for("index"))
+
     _enqueue(url, category, action, quality)
     return redirect(url_for("queue_view"))
 
@@ -353,6 +428,16 @@ def delete(idx):
     return redirect(url_for("index"))
 
 
+@app.route("/retry/<int:idx>", methods=["POST"])
+def retry(idx):
+    entries = downloader.load_link_entries()
+    if 0 <= idx < len(entries):
+        entry = entries[idx]
+        _enqueue(entry["url"], entry.get("category", "uncategorized"), "auto", entry.get("quality", "best"))
+        flash("Re-queued for another attempt — check the Queue page.", "success")
+    return redirect(url_for("queue_view"))
+
+
 @app.route("/push/<int:idx>", methods=["POST"])
 def push(idx):
     config = downloader.load_config()
@@ -361,9 +446,21 @@ def push(idx):
         success, message = downloader.push_to_stash(entries[idx], config)
         if success:
             downloader.mark_pushed(idx)
-        # message isn't surfaced yet beyond server logs; a future pass could
-        # flash it. For now, print so it's visible while the app is running.
-        print(f"push_to_stash idx={idx} success={success} message={message}")
+            flash("Pushed to Stash.", "success")
+        else:
+            flash(f"Push to Stash failed: {message}", "error")
+    return redirect(url_for("index"))
+
+
+@app.route("/push_all", methods=["POST"])
+def push_all():
+    config = downloader.load_config()
+    pushed, failed = downloader.push_all_unpushed_to_stash(config)
+    if pushed or failed:
+        flash(f"Pushed {pushed} to Stash" + (f", {failed} failed." if failed else "."),
+              "success" if not failed else "warning")
+    else:
+        flash("Nothing to push.", "warning")
     return redirect(url_for("index"))
 
 
@@ -379,7 +476,6 @@ def batch_form():
 
 @app.route("/batch", methods=["POST"])
 def batch_submit():
-    config = downloader.load_config()
     urls_text = request.form.get("urls", "")
     default_category = (
         request.form.get("new_default_category", "").strip()
@@ -388,16 +484,25 @@ def batch_submit():
     action = request.form.get("action", "auto")
     default_quality = request.form.get("default_quality", "best")
 
+    queued = 0
+    skipped = 0
     for url, category, quality in downloader.parse_batch_input(urls_text, default_category, default_quality):
+        existing = downloader.find_existing_entry(url)
+        if existing and action == "auto":
+            skipped += 1
+            continue
         _enqueue(url, category, action, quality)
+        queued += 1
 
+    if skipped:
+        flash(f"Queued {queued}, skipped {skipped} already in history.", "warning")
     return redirect(url_for("queue_view"))
 
 
 QUEUE_PAGE = """
 <!doctype html>
 <title>Library Downloader - Queue</title>
-""" + STYLE + """
+""" + STYLE + FLASHES + """
 {% if auto_refresh %}<meta http-equiv="refresh" content="3">{% endif %}
 <div class="card">
 {{ nav|safe }}
