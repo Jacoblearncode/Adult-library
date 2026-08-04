@@ -116,6 +116,17 @@ pick up the improved description.
 Files land in `<library_root>/<category>/`. Run a **Scan** in Stash to pick
 them up and get real thumbnails.
 
+## Link-only export (`link_only.txt`)
+
+A plain-text file in this folder that always reflects the current
+link-only entries — grouped by category, with title/URL/note/pushed
+status per entry. It's **auto-generated and rewritten on every add,
+delete, or push** (via `save_link_entries()`), so it's always current
+without clicking anything. Don't edit it by hand — your changes would be
+overwritten on the next mutation. Open it in Notepad any time you want a
+readable list of everything that couldn't be downloaded, e.g. to review
+later or copy elsewhere.
+
 ## Duplicate detection and retry
 
 - Adding a URL that's already in history is skipped under "Auto" mode — you

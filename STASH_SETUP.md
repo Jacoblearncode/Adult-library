@@ -61,6 +61,35 @@ Stash will walk you through a few screens the first time:
    push link-only entries into Stash automatically instead of you manually
    re-entering them.
 
+## 8. (Optional) Apply the custom theme
+
+The repo includes `stash-custom-theme.css` and `stash-custom.js` — a
+glassmorphism/glow visual theme built entirely from CSS transitions and
+animations, plus a small vanilla-JS cursor-follow glow effect. This is the
+supported way to restyle Stash: it's a prebuilt binary with no source
+access, so there's no way to wire in a React animation library (Framer
+Motion) or a drop-in component kit (OriginUI) — those need to be compiled
+into Stash's own frontend, which we don't have. Pure CSS + vanilla JS
+against the real rendered page is what Stash's Custom CSS/JS boxes
+actually support, and it still gets a genuinely modern look: frosted-glass
+cards, hover lift and glow, an animated gradient nav underline, and
+link-only ("fileless") scenes visually distinguished with a dashed glow
+border so they stand out from real files at a glance.
+
+1. **Settings → Interface**, scroll to **Custom CSS**.
+2. Open `stash-custom-theme.css` from the repo root, copy its entire
+   contents, and paste into the Custom CSS box. Save.
+3. Scroll to **Custom Javascript** (same Interface tab).
+4. Open `stash-custom.js`, copy its contents, and paste into the Custom
+   Javascript box. Save.
+5. Refresh the **Scenes** page — hover over a card to see the lift/glow
+   effect and the cursor-follow glow; link-only scenes should show a
+   dashed glowing border instead of a solid one.
+
+If you ever want to tweak colors, the CSS defines `--glow` near the top
+(`rgba(79, 70, 229, ...)`, the same indigo used in the downloader app) —
+change that one value to shift the whole theme's accent color.
+
 ## Everyday use after setup
 
 - Download something with the downloader tool → run **Scan** in Stash

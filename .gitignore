@@ -1,6 +1,7 @@
 # personal data - never commit
 tools/downloader/config.json
 tools/downloader/link_entries.json
+tools/downloader/link_only.txt
 tools/downloader/.download-archive.txt
 
 # python

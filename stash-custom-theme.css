@@ -1,0 +1,142 @@
+/*
+  Custom theme for Stash — paste into Settings -> Interface -> Custom CSS.
+
+  Targets Stash's actual component class names (confirmed against
+  stashapp/stash source: GridCard.tsx, SceneCard.tsx) rather than guesses.
+  Pure CSS: transitions, transforms, backdrop-filter, @keyframes. No
+  external libraries — Stash ships as a compiled binary, so there's no way
+  to wire a React animation library (Framer Motion) or drop-in component
+  kit (OriginUI) into its already-built frontend. See STASH_SETUP.md for
+  why, and for how to apply this file.
+*/
+
+:root {
+  --glow: 79, 70, 229;      /* indigo, matches the downloader app's accent */
+  --glass-bg: rgba(30, 32, 48, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- Glassmorphism cards ---------- */
+.grid-card {
+  background: var(--glass-bg) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 14px !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.grid-card:hover {
+  transform: translateY(-4px) scale(1.015);
+  box-shadow: 0 8px 28px rgba(var(--glow), 0.35);
+  border-color: rgba(var(--glow), 0.5) !important;
+}
+
+.thumbnail-section {
+  transition: filter 0.25s ease;
+}
+
+.grid-card:hover .thumbnail-section {
+  filter: brightness(1.08) saturate(1.1);
+}
+
+/* ---------- Link-only ("fileless") scenes stand out on sight ---------- */
+.scene-card.fileless,
+.grid-card:has(.fileless) {
+  border: 1px dashed rgba(var(--glow), 0.6) !important;
+  box-shadow: 0 0 14px rgba(var(--glow), 0.15) inset;
+}
+
+.scene-card.fileless:hover,
+.grid-card:has(.fileless):hover {
+  box-shadow: 0 0 20px rgba(var(--glow), 0.35) inset, 0 8px 28px rgba(var(--glow), 0.35);
+}
+
+/* ---------- Progress bars get an animated gradient fill ---------- */
+.progress-indicator {
+  background: linear-gradient(90deg, rgba(var(--glow), 0.9), #22d3ee, rgba(var(--glow), 0.9)) !important;
+  background-size: 200% 100%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ---------- Navbar: subtle glass + animated accent underline ---------- */
+.navbar {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(20, 22, 34, 0.75) !important;
+  border-bottom: 1px solid rgba(var(--glow), 0.25);
+}
+
+.navbar .nav-link {
+  position: relative;
+  transition: color 0.2s ease;
+}
+
+.navbar .nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -2px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(var(--glow), 1), #22d3ee);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s ease;
+}
+
+.navbar .nav-link:hover::after,
+.navbar .nav-link.active::after {
+  transform: scaleX(1);
+}
+
+/* ---------- Card title / details fade in on hover for a lighter default state ---------- */
+.card-section-title {
+  transition: color 0.2s ease;
+}
+
+.grid-card:hover .card-section-title {
+  color: rgb(var(--glow));
+}
+
+/* ---------- Skeleton shimmer while thumbnails load ---------- */
+.thumbnail-section img[src=""],
+.thumbnail-section:empty {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.03) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ---------- Cursor-follow glow (position set by stash-custom.js) ---------- */
+.grid-card {
+  position: relative;
+}
+
+.grid-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background: radial-gradient(
+    180px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(var(--glow), 0.25),
+    transparent 70%
+  );
+}
+
+.grid-card:hover::before {
+  opacity: 1;
+}

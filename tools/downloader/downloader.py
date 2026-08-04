@@ -20,6 +20,7 @@ CONFIG_PATH = BASE_DIR / "config.json"
 CONFIG_EXAMPLE_PATH = BASE_DIR / "config.example.json"
 HISTORY_PATH = BASE_DIR / "link_entries.json"
 ARCHIVE_PATH = BASE_DIR / ".download-archive.txt"
+LINK_ONLY_EXPORT_PATH = BASE_DIR / "link_only.txt"
 
 
 def load_config():
@@ -38,6 +39,41 @@ def load_link_entries():
 def save_link_entries(entries):
     with open(HISTORY_PATH, "w", encoding="utf-8") as f:
         json.dump(entries, f, indent=2)
+    sync_link_only_export(entries)
+
+
+def sync_link_only_export(entries=None):
+    """Rewrite link_only.txt from scratch so it always reflects current
+    link-only entries — called automatically on every history mutation via
+    save_link_entries(), never edited by hand.
+    """
+    if entries is None:
+        entries = load_link_entries()
+    link_only = [e for e in entries if e.get("status") == "link_only"]
+
+    grouped = {}
+    for e in link_only:
+        grouped.setdefault(e.get("category", "uncategorized"), []).append(e)
+
+    lines = [
+        "LINK-ONLY ENTRIES (auto-generated, do not edit -- regenerated on every change)",
+        f"Last updated: {time.strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Total: {len(link_only)}",
+        "",
+    ]
+    for category in sorted(grouped):
+        lines.append(f"[{category}]")
+        for e in grouped[category]:
+            lines.append(f"- {e['url']}")
+            title = e.get("title") or "(none)"
+            pushed = "yes" if e.get("pushed_to_stash") else "no"
+            lines.append(f"  Title: {title} | Added: {e.get('added_at', '')} | Pushed to Stash: {pushed}")
+            if e.get("note"):
+                lines.append(f"  Note: {e['note']}")
+        lines.append("")
+
+    with open(LINK_ONLY_EXPORT_PATH, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
 
 
 def add_history_entry(url, category, status, title="", note="", file_path="", quality="best"):

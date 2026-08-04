@@ -146,6 +146,12 @@ category/type/length/style before deciding which.
 - [x] "Push all link-only to Stash" bulk button
 - [x] `start.bat` one-click launcher for Stash + the downloader app
       (edit the `STASH_EXE` path inside it once)
+- [x] Auto-updating `link_only.txt` export — plain-text list of every
+      link-only entry, rewritten on every add/delete/push, always current
+- [x] Stash custom theme (`stash-custom-theme.css` + `stash-custom.js`) —
+      glassmorphism cards, hover glow, animated nav underline, dashed glow
+      border on link-only scenes; paste into Settings → Interface (see
+      `STASH_SETUP.md` step 8)
 
 ---
 
