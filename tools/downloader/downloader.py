@@ -181,6 +181,61 @@ def probe_url(url):
         return False, None, str(e)
 
 
+def _try_redlight_download(url, category, config, quality="best"):
+    """Optional third-party fallback for sites yt-dlp doesn't support, using
+    the `ph-shorts` ("RedLight") package's single-URL API only.
+
+    This deliberately calls only `GetVideoInfo` / `DownloadVideo` for the
+    exact URL given -- never the package's `--search`, `--channel`,
+    `--batch`, or `--proxy` features. Those do automated multi-site
+    search/scrape/proxy-evasion, which is out of scope for this project (see
+    the README's "Scope note" section) -- this call site never touches them.
+
+    Opt-in only: requires `enable_redlight_fallback: true` in config.json
+    *and* `pip install ph-shorts` (deliberately not a default dependency --
+    see downloader/README.md for why). Returns (file_path, title) on
+    success, or None if disabled, not installed, unsupported, or it fails.
+    """
+    if not config.get("enable_redlight_fallback"):
+        return None
+    if quality == "audio":
+        # RedLight only pulls the video stream; audio-only stays on the
+        # yt-dlp / direct-file path.
+        return None
+    try:
+        from RedLight.api import GetVideoInfo, DownloadVideo
+    except ImportError:
+        return None
+
+    try:
+        info = GetVideoInfo(url)
+    except Exception:
+        return None
+
+    category = sanitize_category(category)
+    library_root = Path(config["library_root"])
+    target_dir = library_root / category
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    redlight_quality = {"1080p": "1080", "720p": "720"}.get(quality, "best")
+
+    try:
+        file_path = DownloadVideo(
+            url=url,
+            output_dir=str(target_dir),
+            quality=redlight_quality,
+            proxy=None,  # never -- this only ever fetches the one URL given
+        )
+    except Exception:
+        return None
+
+    if not file_path or not Path(file_path).exists() or Path(file_path).stat().st_size == 0:
+        return None
+
+    title = info.get("title") or Path(file_path).stem
+    return file_path, title
+
+
 def _try_direct_download(url, category, config):
     """Best-effort fallback for URLs yt-dlp doesn't recognize: if the URL
     points straight at an actual video file (by extension, or the server
@@ -302,6 +357,20 @@ def download_url(url, category, config, quality="best"):
 
     supported, info, error = probe_url(url)
     if not supported:
+        redlight = _try_redlight_download(url, category, config, quality=quality)
+        if redlight:
+            file_path, title = redlight
+            add_history_entry(
+                url, category, "downloaded", title=title, file_path=file_path,
+                note="downloaded via RedLight single-URL fallback (no yt-dlp extractor for this site)",
+                quality=quality,
+            )
+            return {
+                "status": "downloaded",
+                "category": category,
+                "title": title,
+                "file_path": file_path,
+            }
         direct = _try_direct_download(url, category, config)
         if direct:
             file_path, title = direct

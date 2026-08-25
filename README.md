@@ -152,6 +152,15 @@ category/type/length/style before deciding which.
       glassmorphism cards, hover glow, animated nav underline, dashed glow
       border on link-only scenes; paste into Settings → Interface (see
       `STASH_SETUP.md` step 8)
+- [x] Optional single-URL fallback via the `ph-shorts` ("RedLight") package
+      for sites yt-dlp doesn't support — audited before integrating (no
+      malware found, but its GitHub source is unverifiable); off by default,
+      opt in via `enable_redlight_fallback` in `config.json`; only its
+      single-URL API is ever called, never its search/channel/proxy
+      features — see `tools/downloader/README.md`
+- [x] Quick-add bookmarklet as the non-scraping alternative to a "search"
+      feature — captures the tab you're already manually browsing into the
+      add form, on demand, instead of fetching/searching anything itself
 
 ---
 

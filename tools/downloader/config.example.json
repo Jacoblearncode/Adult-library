@@ -8,5 +8,6 @@
   "stash_url": "http://localhost:9999/graphql",
   "stash_api_key": "",
   "auth_username": "",
-  "auth_password": ""
+  "auth_password": "",
+  "enable_redlight_fallback": false
 }

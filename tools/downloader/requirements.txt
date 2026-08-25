@@ -1,3 +1,8 @@
 flask>=3.0
 yt-dlp>=2024.1.1
 requests>=2.31
+
+# Optional -- only needed if you set "enable_redlight_fallback": true in
+# config.json. Not installed by default: it's a third-party package with an
+# unverifiable upstream source, see downloader/README.md before enabling.
+# ph-shorts>=2.1.2

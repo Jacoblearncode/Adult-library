@@ -111,6 +111,45 @@ pick up the improved description.
   (e.g. ffmpeg missing), it logs a link-only entry with a note instead of
   a false success.
 
+## Optional: RedLight single-URL fallback
+
+Off by default. If a site isn't supported by yt-dlp and isn't a direct file
+link either, you can optionally let the tool try one more thing: the
+[`ph-shorts`](https://pypi.org/project/ph-shorts/) package (branded
+"RedLight"), for its per-site HLS downloaders. This tool only ever calls its
+single-URL API (`GetVideoInfo` / `DownloadVideo` for the exact URL you gave
+it) — never its `--search`, `--channel`, `--batch`, or `--proxy` features,
+which do the kind of automated multi-site search/scrape/proxy-evasion this
+project deliberately excludes (see the root README's "Scope note").
+
+Before enabling it, know what was and wasn't checked: a manual read of the
+package's source found no malware signatures (no eval/exec of remote code,
+no obfuscation, no credential/env harvesting, no suspicious network
+destinations) — but its claimed GitHub source and maintainer account
+couldn't be verified (404s), so there's less community scrutiny behind it
+than yt-dlp. Decide if that tradeoff is acceptable for you.
+
+To enable:
+1. `pip install ph-shorts` (not in `requirements.txt` by default, on
+   purpose — you're opting into a less-vetted dependency deliberately)
+2. Set `"enable_redlight_fallback": true` in `config.json`
+
+It only kicks in as the second fallback (after yt-dlp, before the
+direct-file fallback), never sends a proxy, and doesn't run for
+audio-only requests (it doesn't do audio extraction).
+
+## Quick-add bookmarklet (an alternative to "search")
+
+Instead of a built-in search feature — which for adult tube sites would
+mean either an official API (none exist) or scraping/proxying their search
+results, both out of scope here — the home page has a **"+ Add to
+Library"** bookmarklet. Drag it to your bookmarks bar; while browsing
+normally and you land on something you want to add, click it. It opens
+`/quick_add` with that tab's URL pre-filled into the add form — you still
+pick the category and press Add yourself. It captures only the page you're
+already on, on demand, the same as copying the address bar by hand but
+without the copy-paste — it never fetches or searches anything on its own.
+
 ## After downloading
 
 Files land in `<library_root>/<category>/`. Run a **Scan** in Stash to pick

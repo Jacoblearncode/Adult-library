@@ -189,7 +189,7 @@ PAGE = """
 {{ nav|safe }}
 <h1>Paste a link</h1>
 <form method="post" action="/add">
-  <div class="field"><input type="text" name="url" placeholder="https://..." size="60" required></div>
+  <div class="field"><input type="text" name="url" placeholder="https://..." size="60" required value="{{ prefill_url or '' }}"></div>
   <div class="field">
     Category / folder:
     <select name="category">
@@ -215,6 +215,17 @@ PAGE = """
   <div class="hint">Pasting a URL that's already in history is skipped under "Auto" (use Retry on its row instead) &mdash; pick "Force download attempt" here to add it again anyway.</div>
   <button type="submit" style="margin-top:0.75rem;">Add</button>
 </form>
+</div>
+
+<div class="card">
+<h1>Quick-add bookmarklet</h1>
+<p class="muted">Drag this to your bookmarks bar. While you're browsing normally and land on a page
+you want to add, click it &mdash; it opens this app with that page's URL pre-filled, so there's no
+copy-paste. It only ever captures the tab you already have open; nothing gets searched or fetched
+automatically.</p>
+<a href="{{ bookmarklet_href }}" onclick="return false;"
+   style="display:inline-block; padding:0.5rem 1rem; background:var(--accent); color:#fff;
+          border-radius:8px; text-decoration:none; font-weight:600;">+ Add to Library</a>
 </div>
 
 <div class="stats">
@@ -372,7 +383,20 @@ def _filtered_indexed_entries(q, folder, status):
     return indexed, entries
 
 
-def _render_index():
+def _bookmarklet_href():
+    """A javascript: bookmarklet that opens this app's /quick_add with the
+    current tab's URL -- the non-scraping alternative to a "search" feature:
+    it captures a page you're already manually browsing, once you're on it,
+    instead of fetching or searching anything on its own.
+    """
+    host = request.host_url.rstrip("/")
+    return (
+        "javascript:void(window.open('" + host +
+        "/quick_add?url='+encodeURIComponent(location.href),'_blank'));"
+    )
+
+
+def _render_index(prefill_url=""):
     config = downloader.load_config()
     q = request.args.get("q", "").strip()
     folder = request.args.get("folder", "").strip()
@@ -394,12 +418,23 @@ def _render_index():
         link_only_count=sum(1 for e in all_entries if e.get("status") == "link_only"),
         current_gb=current_bytes / (1024 ** 3),
         max_gb=max_bytes / (1024 ** 3),
+        prefill_url=prefill_url,
+        bookmarklet_href=_bookmarklet_href(),
     )
 
 
 @app.route("/", methods=["GET"])
 def index():
     return _render_index()
+
+
+@app.route("/quick_add", methods=["GET"])
+def quick_add():
+    """Landing point for the bookmarklet: pre-fills the add form with the
+    URL of the tab the user clicked it from. Still requires the user to
+    pick a category and press Add -- no auto-submission.
+    """
+    return _render_index(prefill_url=request.args.get("url", "").strip())
 
 
 @app.route("/add", methods=["POST"])
